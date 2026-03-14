@@ -2,6 +2,7 @@
 
 ## Prerequisites
 
+- **DSSAT 4.8**
 - **Java 25** (or compatible JRE)
 - **Apache Maven** 3.6 or later
 
@@ -12,9 +13,60 @@ java -version
 mvn -version
 ```
 
-## Compilation
+## Compile DSSAT
 
-Compile the project:
+```bash
+sudo yum install gfortran
+sudo yum install maven
+sudo yum install cmake
+mkdir codebase
+cd codebase
+git clone https://github.com/dssat/dssat-csm-os
+cd dssat-csm-os
+mkdir release
+cd release
+cmake -DCMAKE_BUILD_TYPE=RELEASE ..
+make
+```
+
+## Preparation
+
+Clone this project
+
+```bash
+cd ~/codebase
+git clone https://github.com/jawoo/Tokki
+cd Tokki
+```
+
+Copy DSSAT files to the resource directory
+
+```bash
+cd ~/codebase/Tokki/res
+cp ~/codebase/dssat-csm-os/Data/* ./.csm
+cp ~/codebase/dssat-csm-os/Data/BatchFiles/* ./.csm
+cp ~/codebase/dssat-csm-os/Data/Default/* ./.csm
+cp ~/codebase/dssat-csm-os/Data/Genotype/* ./.csm
+cp ~/codebase/dssat-csm-os/Data/Pest/* ./.csm
+cp ~/codebase/dssat-csm-os/Data/StandardData/* ./.csm
+cp ~/codebase/dssat-csm-os/release/bin/dscsm048 ./.csm/DSCSM048.EXE
+```
+
+Create some additional directories to collect and process temporary files
+```bash
+cd ~/codebase/Toco/res/.temp
+mkdir summary multipleplanting flowering planting error
+```
+
+## Selecting cultivars
+You'll need to flag in the cultivar file (*.CUL) to tell the program which cultivar to use. Open the cultivar file for the crop you'd like to use (e.g., MZCER.048.CUL) in the res/.csm directory and add a space and an asterisk at the end of the line, like the following:
+
+```
+990002 MEDIUM SEASON        . IB0001 200.0 0.300 800.0 700.0  8.50 38.90 *
+```
+You can flag as many cultivars as you like.
+
+## Compile the project
 
 ```bash
 mvn clean compile
@@ -33,18 +85,12 @@ This produces:
 
 ## Execution
 
-### Option 1: Run the executable JAR
+Run the executable JAR
 
 ```bash
 java -jar target/tokki-1.0-SNAPSHOT-jar-with-dependencies.jar
 ```
 
-### Option 2: Run with Maven (no JAR)
-
-```bash
-mvn exec:java
-```
-
-### Option 3: Run from the project root
-
-Ensure the `res` directory and required input files are present. Run the application from the project root so it can access them.
+## Note
+- After all the batch runs are completed, you can pick up the merged CSV output file at ~/codebase/Toco/res/result directory.
+- The values of model input parameters are defined in the "config.yml" file in the root directory.
