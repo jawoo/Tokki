@@ -1,0 +1,6 @@
+# Ignore all files under res/ - only directory structure (via .gitkeep) is tracked
+*
+# Allow Git to traverse into subdirectories
+!*/
+!.gitignore
+!.gitkeep
