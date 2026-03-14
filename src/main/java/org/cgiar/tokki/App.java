@@ -286,7 +286,7 @@ public class App
                         // Write
                         try
                         {
-                            String combinedOutput = directoryFinal+"toco_combinedOutput_"+climateOption+"_"+wthCode+"_"+timeStamp+".csv";
+                            String combinedOutput = directoryFinal+"tokki_combinedOutput_"+climateOption+"_"+wthCode+"_"+timeStamp+".csv";
                             
                             // Looping through the files
                             try (BufferedWriter writer = new BufferedWriter(new FileWriter(combinedOutput))) {
