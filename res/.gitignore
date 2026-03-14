@@ -4,3 +4,6 @@
 !*/
 !.gitignore
 !.gitkeep
+# Include files under input/
+!input/
+!input/**

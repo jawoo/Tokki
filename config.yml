@@ -1,0 +1,42 @@
+tableNameUnitInformation: unit_information
+countryCode: ETH
+numberOfThreads: 1
+limitForDebugging: 10
+directory:
+  weather: 2022-12_tt9106r2_debug
+  working: res
+  source: .csm
+  temp: .temp
+  input: input
+  threads: threads
+  result: result
+  summary: summary
+  planting: multipleplanting
+  flowering: flowering
+  plantingDates: planting
+  errors: error
+dataFile:
+  plantingDates: pdates.csv
+scenarioCombinations: 1
+scenarioSwitch:
+  waterManagement: 0
+  fertilizer: 1
+  manure: 0
+  residue: 0
+  plantingWindow: 0
+  plantingDensity: 0
+  CO2fertilization: 0
+plantingDateOptions:
+  useFixedPlantingDate: 1
+  fixedPlantingDate: 135
+useRecommendedNitrogenFertilizerRate: 0
+nitrogenFertilizerRates:
+# - 0
+ - 30
+# - 90
+# - 150
+atmosphericCO2:
+ - 350
+ - 450
+ - 550
+ - 700
