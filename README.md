@@ -95,6 +95,7 @@ java -jar target/tokki-1.0-SNAPSHOT-jar-with-dependencies.jar
 
 ## Note
 
+- Ger the weather data for USA covering the maize and soybean grid cells from [here](https://cgiar-my.sharepoint.com/:u:/g/personal/j_koo_cgiar_org/IQCLPhLwhm9JRKrZJ_KLMUb1AXMOhLSemFW72fI61zo_rRM?e=9VogL4) and extract the subfolder to ./weather directory.
 - After all the batch runs are completed, you can pick up the merged CSV output file at ~/codebase/Toco/res/result directory.
 - The values of model input parameters are defined in the "config.yml" file in the root directory.
 
