@@ -23,7 +23,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
 // CSV and file utilities
@@ -221,7 +220,7 @@ public class App
     
             // Climate Options
             ArrayList<Object[]> climateOptions = new ArrayList<>();
-            climateOptions.add(new Object[]{ 2011, "2011" });
+            climateOptions.add(new Object[]{ 2021, "2021" });
     
             // Looping through climates
             for (Object[] climate: climateOptions)
@@ -234,16 +233,13 @@ public class App
                 Object[] unitInfo = Utility.getUnitInfo(tableNameUnitInformation, directoryInput, limitForDebugging);
                 int numberOfUnits = unitInfo.length;
                 System.out.println("> Number of units to run: "+numberOfUnits);
-    
-                // Get weather information
-                String[] weatherInfo = Utility.getFileNames(directoryWeather, "WTH", 0);
-    
+        
     
                 /*
                 2. FINDING PROMISING PLANTING DATES
                 */
                 System.out.println("> Climate scenario: "+climateOption);
-                TreeMap<Object, Object> plantingDatesToSimulate = getPlantingDates(unitInfo, weatherInfo);
+                TreeMap<Object, Object> plantingDatesToSimulate = getPlantingDates(unitInfo);
     
     
                 /*
@@ -253,7 +249,7 @@ public class App
                 TreeMap<Object, Object> daysToFloweringByCultivar = new TreeMap<>();
                 try
                 {
-                    daysToFloweringByCultivar = getFloweringDates(unitInfo, weatherInfo, plantingDatesToSimulate, climateOption, firstPlantingYear, co2);
+                    daysToFloweringByCultivar = getFloweringDates(unitInfo, plantingDatesToSimulate, climateOption, firstPlantingYear, co2);
                 }
                 catch (Exception ex)
                 {
@@ -265,11 +261,14 @@ public class App
                 4. SEASONAL RUNS
                 */
                 System.out.println("> Running seasonal simulations...");
-                for (String wth: weatherInfo)
+                for (Object o: unitInfo)
                 {
-    
+                    Object[] oi = (Object[])o;
+                    int cell5m = (Integer)oi[1];
+                    String weatherFileName = String.valueOf(cell5m) + ".WTH";
+
                     // Run by WTH
-                    runSeasonalSimulations(unitInfo, wth, plantingDatesToSimulate, climateOption, daysToFloweringByCultivar, firstPlantingYear, co2History);
+                    runSeasonalSimulations(unitInfo, weatherFileName, plantingDatesToSimulate, climateOption, daysToFloweringByCultivar, firstPlantingYear, co2History);
 
                     
                     /*
@@ -281,7 +280,7 @@ public class App
                         String[] outputFileNames = Utility.getFileNames(directoryOutput, "_"+climateOption);
                         Date date = new Date();
                         long timeStamp = date.getTime();
-                        String wthCode = wth.split("[.]")[0];
+                        String wthCode = weatherFileName.split("[.]")[0];
     
                         // Write
                         try
@@ -354,7 +353,7 @@ public class App
 
     // Find promising planting dates
     @SuppressWarnings({"UseSpecificCatch", "CallToPrintStackTrace"})
-    public static TreeMap<Object, Object> getPlantingDates(Object[] unitInfo, String[] weatherInfo)
+    public static TreeMap<Object, Object> getPlantingDates(Object[] unitInfo)
     {
         TreeMap<Object, Object> plantingDatesToSimulate = new TreeMap<>();
         int numberOfUnits = unitInfo.length;
@@ -372,18 +371,15 @@ public class App
                 {
                     Object[] oi = (Object[])unitInfo[i];
                     int cell5m = (Integer) oi[1];
+                    String weatherFileName = String.valueOf(cell5m) + ".WTH";
                     int medianPlantingDate = (Integer) oi[5];
                     String cropCode = (String) oi[6];
-                    String season = (String) oi[12];
+                    String season = "Main";
                     System.out.println("> Planting date "+(i+1)+"/"+numberOfUnits+", CELL5M: "+cell5m+" for "+cropCode+", "+season+" season");
 
-                    // Multiple weather files for this unit
-                    for (String weatherFileName: weatherInfo)
-                    {
-                        Future<Object[]> future = executor.submit(new ScanningPlantingDates(medianPlantingDate, weatherFileName, season, cropCode));
-                        list.add(future);
-                    }
-
+                    // Scanning planting dates
+                    Future<Object[]> future = executor.submit(new ScanningPlantingDates(medianPlantingDate, weatherFileName, season, cropCode));
+                    list.add(future);
                 }
 
                 // Retrieve
@@ -409,7 +405,7 @@ public class App
 
     // Find average flowering dates
     @SuppressWarnings({"UseSpecificCatch", "CallToPrintStackTrace"})
-    public static TreeMap<Object, Object> getFloweringDates(Object[] unitInfo, String[] weatherInfo,
+    public static TreeMap<Object, Object> getFloweringDates(Object[] unitInfo, 
                                                             TreeMap<Object, Object> plantingDatesToSimulate,
                                                             String climateOption,
                                                             int firstPlantingYear, int co2) throws IOException {
@@ -444,7 +440,7 @@ public class App
                 {
                     Object[] o = (Object[])unitInfo[u];
                     int pdMean = (int)o[5];
-                    String season = (String) o[12];
+                    String season = "Main";
 
                     // Construct the cultivar option
                     String cropCode = (String)o[6];
@@ -453,46 +449,28 @@ public class App
                     int[] cultivarInfo = (int[])o[9];
                     Object[] cultivarOption = new Object[]{ countryCode, cropCode, cultivarCode, cultivarName, cultivarInfo[0], cultivarInfo[1], cultivarInfo[2] };
 
-                    // Select a subset of weatherInfo
-                    String[] weatherInfoSubset;
-                    if (weatherInfo.length>10)
-                    {
-                        weatherInfoSubset = new String[10]; // Let's just pick 10
-                        int min = 0;
-                        int max = weatherInfo.length-1;
-                        for (int i=0; i<10; i++)
-                        {
-                            int randomIndex = ThreadLocalRandom.current().nextInt(min, max);
-                            weatherInfoSubset[i] = weatherInfo[randomIndex];
-                        }
-                    }
-                    else
-                        weatherInfoSubset = weatherInfo;
-
                     // Weather name
-                    for (String weatherFileName: weatherInfoSubset)
+                    int cell5m = (Integer)o[1];
+                    String weatherFileName = String.valueOf(cell5m) + ".WTH";
+                    String weatherKey = weatherFileName.split("\\.")[0] + "_" + season + "_" + cropCode;
+
+                    // To use below
+                    daysToFloweringByCultivar.put(cropCode + cultivarCode, new int[]{0, 0});
+
+                    // Planting dates to use
+                    if (plantingDatesToSimulate.containsKey(weatherKey))
                     {
-                        String weatherKey = weatherFileName.split("\\.")[0] + "_" + season + "_" + cropCode;
+                        int pd = (Integer) plantingDatesToSimulate.get(weatherKey);
+                        if (pd <= 0) pd = pdMean;
+                        int finalThreadID = threadID;
+                        int finalPd = pd;
 
-                        // To use below
-                        daysToFloweringByCultivar.put(cropCode + cultivarCode, new int[]{0, 0});
+                        // Multithreading
+                        Future<Integer> future = executor.submit(new ThreadFloweringRuns(o, finalThreadID, weatherFileName, finalPd, cultivarOption, plantingDateOptionLabel, co2, firstPlantingYear));
+                        futures.add(future);
+                        threadID++;
 
-                        // Planting dates to use
-                        if (plantingDatesToSimulate.containsKey(weatherKey))
-                        {
-                            int pd = (Integer) plantingDatesToSimulate.get(weatherKey);
-                            if (pd <= 0) pd = pdMean;
-                            int finalThreadID = threadID;
-                            int finalPd = pd;
-
-                            // Multithreading
-                            Future<Integer> future = executor.submit(new ThreadFloweringRuns(o, finalThreadID, weatherFileName, finalPd, cultivarOption, plantingDateOptionLabel, co2, firstPlantingYear));
-                            futures.add(future);
-                            threadID++;
-
-                            if (threadID==numberOfThreads) threadID = 0;
-                        }
-
+                        if (threadID==numberOfThreads) threadID = 0;
                     }
 
                 }
@@ -676,7 +654,7 @@ public class App
     }
 
         // Run seasonal simulations
-    public static void runSeasonalSimulations(Object[] unitInfo, String wth,
+    public static void runSeasonalSimulations(Object[] unitInfo, String weatherFileName,
                                               TreeMap<Object, Object> plantingDatesToSimulate, String climateOption,
                                               TreeMap<Object, Object> daysToFloweringByCultivar,
                                               int firstPlantingYear, TreeMap<Integer, Integer> co2History)
@@ -729,7 +707,7 @@ public class App
                         }
 
                         // Weather file and planting date
-                        String weatherKey = wth.split("\\.")[0] + "_" + season + "_" + cropCode;
+                        String weatherKey = weatherFileName.split("\\.")[0] + "_" + season + "_" + cropCode;
                         int p = fixedPlantingDate;
                         if (!useFixedPlantingDate)
                         {
@@ -743,7 +721,7 @@ public class App
                                 System.out.println("> Default planting date used for "+cropCultivarCode);
                             }
                         }
-                        Object[] weatherAndPlantingDate = { wth, p };
+                        Object[] weatherAndPlantingDate = { weatherFileName, p };
 
                         // Multiple threads
                         Future<Integer> future = executor.submit(new ThreadSeasonalRuns(ou, weatherAndPlantingDate, cultivarOption, daysToFlowering, daysToHarvest, climateOption, progress, firstPlantingYear, co2History));

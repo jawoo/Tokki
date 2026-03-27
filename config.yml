@@ -1,9 +1,9 @@
-tableNameUnitInformation: unit_information
-countryCode: ETH
+tableNameUnitInformation: unit-information_usa-mzsb-47707
+countryCode: USA
 numberOfThreads: 1
-limitForDebugging: 10
+limitForDebugging: 1
 directory:
-  weather: 2022-12_tt9106r2_debug
+  weather: 2021-2025_usa-mzsb-47707
   working: res
   source: .csm
   temp: .temp
@@ -17,7 +17,7 @@ directory:
   errors: error
 dataFile:
   plantingDates: pdates.csv
-scenarioCombinations: 1
+scenarioCombinations: 0
 scenarioSwitch:
   waterManagement: 0
   fertilizer: 1
@@ -27,7 +27,7 @@ scenarioSwitch:
   plantingDensity: 0
   CO2fertilization: 0
 plantingDateOptions:
-  useFixedPlantingDate: 1
+  useFixedPlantingDate: 0
   fixedPlantingDate: 135
 useRecommendedNitrogenFertilizerRate: 0
 nitrogenFertilizerRates:
@@ -36,7 +36,7 @@ nitrogenFertilizerRates:
 # - 90
 # - 150
 atmosphericCO2:
- - 350
+# - 350
  - 450
- - 550
- - 700
+# - 550
+# - 700

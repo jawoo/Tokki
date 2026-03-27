@@ -291,7 +291,7 @@ public class Utility
                     if (limitForDebugging==0 || counter<limitForDebugging)
                     {
                         String[] crops = record.get("Crops").split(",");
-                        String[] pmonths = record.get("PlantingMonths").split(",");
+                        String[] pdates = record.get("PlantingDates").split(",");
                         String[] areas = record.get("Areas").split(",");
 
                         for (int c=0; c<crops.length; c++)
@@ -304,37 +304,30 @@ public class Utility
                             try
                             {
 
-                                //if (String.valueOf(crop).equals("MZ"))
-                                //{
-                                    for (String cultivarCodeAndName: cultivarCodeAndNames)
-                                    {
-                                        String cultivarCode = cultivarCodeAndName.substring(0,6);
-                                        String cultivarName = cultivarCodeAndName.substring(7);
-                                        String pmonth = pmonths[c];
-                                        String pdat = Utility.getPlantingDate(pmonth);
+                                for (String cultivarCodeAndName: cultivarCodeAndNames)
+                                {
+                                    String cultivarCode = cultivarCodeAndName.substring(0,6);
+                                    String cultivarName = cultivarCodeAndName.substring(7);
+                                    String pdate = pdates[c];
 
-                                        // Putting all unit information in one object array
-                                        Object[] o = new Object[16];
-                                        o[0]  = Integer.valueOf(record.get("UnitID"));
-                                        o[1]  = Integer.valueOf(record.get("CELL5M"));
-                                        o[2]  = record.get("SoilProfileID");
-                                        o[3]  = record.get("SoilProfile");
-                                        o[4]  = Integer.valueOf(record.get("SoilRootingDepth"));
-                                        o[5]  = Integer.valueOf(pdat);
-                                        o[6]  = crop;
-                                        o[7]  = cultivarCode;
-                                        o[8]  = cultivarName;
-                                        o[9]  = cultivarInfo;
-                                        o[10] = Double.valueOf(record.get("X"));
-                                        o[11] = Double.valueOf(record.get("Y"));
-                                        o[12] = record.get("Season").substring(0,4).toUpperCase();
-                                        o[13] = record.get("AEZ");
-                                        o[14] = record.get("FPU");
-                                        o[15] = area;
-                                        unitInfo.add(o);
-                                        counter++;
-                                    }
-                                //}
+                                    // Putting all unit information in one object array
+                                    Object[] o = new Object[13];
+                                    o[0]  = Integer.valueOf(record.get("UnitID"));
+                                    o[1]  = Integer.valueOf(record.get("CELL5M"));
+                                    o[2]  = record.get("SoilProfileID");
+                                    o[3]  = record.get("SoilProfile");
+                                    o[4]  = Integer.valueOf(record.get("SoilRootingDepth"));
+                                    o[5]  = Integer.valueOf(pdate);
+                                    o[6]  = crop;
+                                    o[7]  = cultivarCode;
+                                    o[8]  = cultivarName;
+                                    o[9]  = cultivarInfo;
+                                    o[10] = Double.valueOf(record.get("X"));
+                                    o[11] = Double.valueOf(record.get("Y"));
+                                    o[12] = area;
+                                    unitInfo.add(o);
+                                    counter++;
+                                }
 
                             }
                             catch (NumberFormatException | StringIndexOutOfBoundsException | ArrayIndexOutOfBoundsException ex)
