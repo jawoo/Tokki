@@ -2,6 +2,8 @@ tableNameUnitInformation: unit-information_usa-mzsb-47707
 countryCode: USA
 numberOfThreads: 1
 limitForDebugging: 1
+firstPlantingYear: 2021
+numberOfYears: 5
 directory:
   weather: 2021-2025_usa-mzsb-47707
   working: res

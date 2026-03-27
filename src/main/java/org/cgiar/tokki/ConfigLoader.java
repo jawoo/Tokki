@@ -71,6 +71,8 @@ public final class ConfigLoader
         Map<String, Integer> plantingDateOptions = (Map<String, Integer>) config.get("plantingDateOptions");
         boolean useFixedPlantingDate = plantingDateOptions.get("useFixedPlantingDate") > 0;
         int fixedPlantingDate = plantingDateOptions.get("fixedPlantingDate");
+        int firstPlantingYear = (int)config.get("firstPlantingYear");
+        int numberOfYears = (int)config.get("numberOfYears");
 
         return new TokkiConfig(
                 tableNameUnitInformation,
@@ -85,7 +87,9 @@ public final class ConfigLoader
                 dataPlantingDates,
                 switchScenarios,
                 useFixedPlantingDate,
-                fixedPlantingDate
+                fixedPlantingDate,
+                firstPlantingYear,
+                numberOfYears
         );
     }
 }

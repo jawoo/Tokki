@@ -40,7 +40,7 @@ public class App
 
     // Some initialization and settings
     static long timeInitial = System.currentTimeMillis();
-    static String tableNameUnitInformation = "unit_information";
+    static String tableNameUnitInformation = "";
     static String d = File.separator;
     static String fileDaysToFlowering = "daystoflowering";
     static String directoryWeather;
@@ -57,6 +57,8 @@ public class App
     static int numberOfThreads = 4;    // per box
     static String countryCode = "ETH";
     static int limitForDebugging = 1;
+    static int firstPlantingYear = 2021;
+    static int numberOfYears = 5;
     static boolean useAvgPlantingDensity = true;
     static boolean verbose = false;
     static boolean cleanUpFirst = true;
@@ -102,6 +104,8 @@ public class App
             countryCode = cfg.countryCode();
             numberOfThreads = cfg.numberOfThreads();
             limitForDebugging = cfg.limitForDebugging();
+            firstPlantingYear = cfg.firstPlantingYear();
+            numberOfYears = cfg.numberOfYears();
             scenarioCombinations = cfg.scenarioCombinations();
             useRecommendedNitrogenFertilizerRate = cfg.useRecommendedNitrogenFertilizerRate();
             nitrogenFertilizerRates = cfg.nitrogenFertilizerRates();
@@ -139,215 +143,193 @@ public class App
         1. PREPARATION
         */
         if (step1)
+        {
+
+            // Showing some parameter values
+            System.out.println("> OS: "+Utility.OS.toUpperCase());
+            System.out.println("> ISO3: "+countryCode);
+            System.out.println("> Number of threads: "+numberOfThreads);
+            System.out.println("> Limit: "+limitForDebugging);
+            System.out.println("> Weather data: "+directoryWeather);
+            System.out.println("> Management practice - Water: "+(switchScenarios[0] ? "ON" : "OFF"));
+            System.out.println("> Management practice - Fertilizer: "+(switchScenarios[1] ? "ON" : "OFF")+" ("+Utility.getString(nitrogenFertilizerRates)+")");
+            System.out.println("> Management practice - Manure: "+(switchScenarios[2] ? "ON" : "OFF"));
+            System.out.println("> Management practice - Residue: "+(switchScenarios[3] ? "ON" : "OFF"));
+            System.out.println("> Management practice - Planting window: "+(switchScenarios[4] ? "ON" : "OFF"));
+            System.out.println("> Management practice - Planting density: "+(switchScenarios[5] ? "ON" : "OFF"));
+            System.out.println("> Management practice - CO2 fertilization: "+(switchScenarios[6] ? "ON" : "OFF")+" ("+Utility.getString(atmosphericCO2Values)+")");
+            System.out.println("> Management practice - Factorial combinations: "+(scenarioCombinations ? "ON" : "OFF"));
+
+            // Copying Toucan workspace files
+            File toucanSource = new File(directorySource);
+            try
             {
-    
-                // Showing some parameter values
-                System.out.println("> OS: "+Utility.OS.toUpperCase());
-                System.out.println("> ISO3: "+countryCode);
-                System.out.println("> Number of threads: "+numberOfThreads);
-                System.out.println("> Limit: "+limitForDebugging);
-                System.out.println("> Weather data: "+directoryWeather);
-                System.out.println("> Management practice - Water: "+(switchScenarios[0] ? "ON" : "OFF"));
-                System.out.println("> Management practice - Fertilizer: "+(switchScenarios[1] ? "ON" : "OFF")+" ("+Utility.getString(nitrogenFertilizerRates)+")");
-                System.out.println("> Management practice - Manure: "+(switchScenarios[2] ? "ON" : "OFF"));
-                System.out.println("> Management practice - Residue: "+(switchScenarios[3] ? "ON" : "OFF"));
-                System.out.println("> Management practice - Planting window: "+(switchScenarios[4] ? "ON" : "OFF"));
-                System.out.println("> Management practice - Planting density: "+(switchScenarios[5] ? "ON" : "OFF"));
-                System.out.println("> Management practice - CO2 fertilization: "+(switchScenarios[6] ? "ON" : "OFF")+" ("+Utility.getString(atmosphericCO2Values)+")");
-                System.out.println("> Management practice - Factorial combinations: "+(scenarioCombinations ? "ON" : "OFF"));
-    
-                // Copying Toucan workspace files
-                File toucanSource = new File(directorySource);
-                try
+
+                // Making T copies
+                for(int t=0; t<numberOfThreads; t++)
                 {
-    
-                    // Making T copies
-                    for(int t=0; t<numberOfThreads; t++)
+                    String dT = directoryThreads+"T"+t;
+                    File toucanDestination = new File(dT);
+                    FileUtils.copyDirectory(toucanSource, toucanDestination);
+
+                    // File permission change if Linux
+                    if (Utility.isUnix())
                     {
-                        String dT = directoryThreads+"T"+t;
-                        File toucanDestination = new File(dT);
-                        FileUtils.copyDirectory(toucanSource, toucanDestination);
-    
-                        // File permission change if Linux
-                        if (Utility.isUnix())
-                        {
-    
-                            // Permission 777
-                            Set<PosixFilePermission> perms = new HashSet<>();
-                            perms.add(PosixFilePermission.OWNER_READ);
-                            perms.add(PosixFilePermission.OWNER_WRITE);
-                            perms.add(PosixFilePermission.OWNER_EXECUTE);
-                            perms.add(PosixFilePermission.GROUP_READ);
-                            perms.add(PosixFilePermission.GROUP_WRITE);
-                            perms.add(PosixFilePermission.GROUP_EXECUTE);
-                            perms.add(PosixFilePermission.OTHERS_READ);
-                            perms.add(PosixFilePermission.OTHERS_WRITE);
-                            perms.add(PosixFilePermission.OTHERS_EXECUTE);
-    
-                            // Apply to the directory
-                            Files.setPosixFilePermissions(Paths.get(dT), perms);
-    
-                            // Apply to all files
-                            String[] workingFileNames = Utility.getFileNames(dT);
-                            for (String workingFileName : workingFileNames)
-                                Files.setPosixFilePermissions(Paths.get(dT + d + workingFileName), perms);
-    
-                        }
-    
+
+                        // Permission 777
+                        Set<PosixFilePermission> perms = new HashSet<>();
+                        perms.add(PosixFilePermission.OWNER_READ);
+                        perms.add(PosixFilePermission.OWNER_WRITE);
+                        perms.add(PosixFilePermission.OWNER_EXECUTE);
+                        perms.add(PosixFilePermission.GROUP_READ);
+                        perms.add(PosixFilePermission.GROUP_WRITE);
+                        perms.add(PosixFilePermission.GROUP_EXECUTE);
+                        perms.add(PosixFilePermission.OTHERS_READ);
+                        perms.add(PosixFilePermission.OTHERS_WRITE);
+                        perms.add(PosixFilePermission.OTHERS_EXECUTE);
+
+                        // Apply to the directory
+                        Files.setPosixFilePermissions(Paths.get(dT), perms);
+
+                        // Apply to all files
+                        String[] workingFileNames = Utility.getFileNames(dT);
+                        for (String workingFileName : workingFileNames)
+                            Files.setPosixFilePermissions(Paths.get(dT + d + workingFileName), perms);
+
                     }
-    
+
                 }
-                catch (IOException e)
-                {
-                    e.printStackTrace();
-                }
-    
-                // Delete files from previous runs
-                if (cleanUpFirst)
-                {
-                    FileUtils.cleanDirectory(new File(directoryOutput));
-                    FileUtils.cleanDirectory(new File(directoryError));
-                    FileUtils.cleanDirectory(new File(directoryMultiplePlatingDates));
-                    FileUtils.cleanDirectory(new File(directoryFloweringDates));
-                    FileUtils.cleanDirectory(new File(directoryInputPlatingDates));
-                    FileUtils.cleanDirectory(new File(directoryFinal));
-                }
-    
-            } //if (step1)
-    
-            // CO2
-            TreeMap<Integer, Integer> co2History = Utility.getCO2History(directoryInput);
-    
-            // Climate Options
-            ArrayList<Object[]> climateOptions = new ArrayList<>();
-            climateOptions.add(new Object[]{ 2021, "2021" });
-    
-            // Looping through climates
-            for (Object[] climate: climateOptions)
+
+            }
+            catch (IOException e)
             {
-                int firstPlantingYear = (int)climate[0];
-                String climateOption = (String)climate[1];
-                int co2 = co2History.get(firstPlantingYear);
-    
-                // Get unit information
-                Object[] unitInfo = Utility.getUnitInfo(tableNameUnitInformation, directoryInput, limitForDebugging);
-                int numberOfUnits = unitInfo.length;
-                System.out.println("> Number of units to run: "+numberOfUnits);
-        
-    
-                /*
-                2. FINDING PROMISING PLANTING DATES
-                */
-                System.out.println("> Climate scenario: "+climateOption);
-                TreeMap<Object, Object> plantingDatesToSimulate = getPlantingDates(unitInfo);
-    
-    
-                /*
-                3. ADDITIONAL RUNS FOR RETRIEVING DAYS-TO-FLOWER FOR EACH VARIETY
-                */
-                System.out.println("> Retrieving days to flowering...");
-                TreeMap<Object, Object> daysToFloweringByCultivar = new TreeMap<>();
-                try
-                {
-                    daysToFloweringByCultivar = getFloweringDates(unitInfo, plantingDatesToSimulate, climateOption, firstPlantingYear, co2);
-                }
-                catch (Exception ex)
-                {
-                    ex.printStackTrace();
-                }
-    
-    
-                /*
-                4. SEASONAL RUNS
-                */
-                System.out.println("> Running seasonal simulations...");
-                for (Object o: unitInfo)
-                {
-                    Object[] oi = (Object[])o;
-                    int cell5m = (Integer)oi[1];
-                    String weatherFileName = String.valueOf(cell5m) + ".WTH";
+                e.printStackTrace();
+            }
 
-                    // Run by WTH
-                    runSeasonalSimulations(unitInfo, weatherFileName, plantingDatesToSimulate, climateOption, daysToFloweringByCultivar, firstPlantingYear, co2History);
+            // Delete files from previous runs
+            if (cleanUpFirst)
+            {
+                FileUtils.cleanDirectory(new File(directoryOutput));
+                FileUtils.cleanDirectory(new File(directoryError));
+                FileUtils.cleanDirectory(new File(directoryMultiplePlatingDates));
+                FileUtils.cleanDirectory(new File(directoryFloweringDates));
+                FileUtils.cleanDirectory(new File(directoryInputPlatingDates));
+                FileUtils.cleanDirectory(new File(directoryFinal));
+            }
 
-                    
-                    /*
-                    5. WRAPPING UP
-                    */
-                    if (step5)
+        } //if (step1)
+    
+        // CO2
+        TreeMap<Integer, Integer> co2History = Utility.getCO2History(directoryInput);   
+        int co2 = co2History.get(firstPlantingYear);
+
+        // Get unit information
+        Object[] unitInfo = Utility.getUnitInfo(tableNameUnitInformation, directoryInput, limitForDebugging);
+        int numberOfUnits = unitInfo.length;
+        System.out.println("> Number of units to run: "+numberOfUnits);
+    
+
+        /*
+        2. FINDING PROMISING PLANTING DATES
+        */
+        System.out.println("> First planting year: "+firstPlantingYear);
+        TreeMap<Object, Object> plantingDatesToSimulate = getPlantingDates(unitInfo);
+
+
+        /*
+        3. ADDITIONAL RUNS FOR RETRIEVING DAYS-TO-FLOWER FOR EACH VARIETY
+        */
+        System.out.println("> Retrieving days to flowering...");
+        TreeMap<Object, Object> daysToFloweringByCultivar = new TreeMap<>();
+        try
+        {
+            daysToFloweringByCultivar = getFloweringDates(unitInfo, plantingDatesToSimulate, firstPlantingYear, co2);
+        }
+        catch (Exception ex)
+        {
+            ex.printStackTrace();
+        }
+
+
+        /*
+        4. SEASONAL RUNS
+        */
+        System.out.println("> Running seasonal simulations...");
+        runSeasonalSimulations(unitInfo, plantingDatesToSimulate, daysToFloweringByCultivar, firstPlantingYear, numberOfYears, co2History);
+
+                
+        /*
+        5. WRAPPING UP
+        */
+        if (step5)
+        {
+            boolean firstFile = true;
+            String[] outputFileNames = Utility.getFileNames(directoryOutput);
+            Date date = new Date();
+            long timeStamp = date.getTime();
+
+            // Write
+            try
+            {
+                String combinedOutput = directoryFinal+"tokki_combinedOutput_"+timeStamp+".csv";
+                
+                // Looping through the files
+                try (BufferedWriter writer = new BufferedWriter(new FileWriter(combinedOutput))) {
+                
+                    // Looping through the files
+                    String header;
+                    for (String outputFileName: outputFileNames)
                     {
-                        boolean firstFile = true;
-                        String[] outputFileNames = Utility.getFileNames(directoryOutput, "_"+climateOption);
-                        Date date = new Date();
-                        long timeStamp = date.getTime();
-                        String wthCode = weatherFileName.split("[.]")[0];
-    
-                        // Write
-                        try
+                        try (BufferedReader reader = new BufferedReader(new FileReader(directoryOutput+outputFileName)))
                         {
-                            String combinedOutput = directoryFinal+"tokki_combinedOutput_"+climateOption+"_"+wthCode+"_"+timeStamp+".csv";
-                            
-                            // Looping through the files
-                            try (BufferedWriter writer = new BufferedWriter(new FileWriter(combinedOutput))) {
-                            
-                                // Looping through the files
-                                String header;
-                                for (String outputFileName: outputFileNames)
-                                {
-                                    try (BufferedReader reader = new BufferedReader(new FileReader(directoryOutput+outputFileName)))
-                                    {
-                                        String line;
+                            String line;
 
-                                        // To skip the header from the second file
-                                        if (firstFile)
-                                        {
-                                            header = reader.readLine()
-                                                    .replace("SOIL_ID","SoilProfileID")
-                                                    .replace("LATI","LAT")
-                                                    .replace("TNAM","TNAM,WeatherSequence")
-                                                    .replace("CR","CropCode")
-                                                    .replace("FNAM","CultivarCode");     // Replace SOIL_ID with SoilProfileID
-                                            writer.append(header).append(nr);
-                                            firstFile = false;
-                                        }
-
-                                        // Reader --> Writer
-                                        while ((line = reader.readLine()) != null)
-                                        {
-                                            String firstValue = line.split(",")[0];
-                                            if (Utility.isNumeric(firstValue))
-                                                writer.append(line.replace("|", ",")).append(nr);
-                                        }
-                                    }
-                                }
+                            // To skip the header from the second file
+                            if (firstFile)
+                            {
+                                header = reader.readLine()
+                                        .replace("SOIL_ID","SoilProfileID")
+                                        .replace("LATI","LAT")
+                                        .replace("CR","CropCode")
+                                        .replace("FNAM","CultivarCode");     // Replace SOIL_ID with SoilProfileID
+                                writer.append(header).append(nr);
+                                firstFile = false;
                             }
-                            System.out.println("> Output files merged: "+combinedOutput);
+
+                            // Reader --> Writer
+                            while ((line = reader.readLine()) != null)
+                            {
+                                String firstValue = line.split(",")[0];
+                                if (Utility.isNumeric(firstValue))
+                                    writer.append(line.replace("|", ",")).append(nr);
+                            }
                         }
-                        catch (Exception ex)
-                        {
-                            ex.printStackTrace();
-                        }
-    
-                        // Delete temporary files for the next batch of runs
-                        try
-                        {
-                            Utility.deleteSummaryFiles(wthCode);
-                        }
-                        catch (Exception ex)
-                        {
-                            System.out.println("> Failed to delete summary files for "+wthCode);
-                        }
-    
-                    } //if (step5)
-    
-                } //for (String wth: weatherInfo)
-    
-            } // for (climate)
-    
-            // How long did it take?
-            long runningTime = (System.currentTimeMillis() - timeInitial)/(long)1000;
-            String rt = String.format("%1$02d:%2$02d:%3$02d", runningTime / (60*60), (runningTime / 60) % 60, runningTime % 60);
-            System.out.println("> Done ("+rt+")");
+                    }
+                }
+                System.out.println("> Output files merged: "+combinedOutput);
+            }
+            catch (Exception ex)
+            {
+                ex.printStackTrace();
+            }
+
+            // Delete temporary files for the next batch of runs
+            try
+            {
+                Utility.deleteSummaryFiles();
+            }
+            catch (Exception ex)
+            {
+                System.out.println("> Failed to delete summary files");
+            }
+
+        } //if (step5)
+
+            
+        // How long did it take?
+        long runningTime = (System.currentTimeMillis() - timeInitial)/(long)1000;
+        String rt = String.format("%1$02d:%2$02d:%3$02d", runningTime / (60*60), (runningTime / 60) % 60, runningTime % 60);
+        System.out.println("> Done ("+rt+")");
             
     }
 
@@ -369,16 +351,15 @@ public class App
                 // Execute
                 for (int i=0; i<numberOfUnits; i++)
                 {
-                    Object[] oi = (Object[])unitInfo[i];
-                    int cell5m = (Integer) oi[1];
+                    Object[] o = (Object[])unitInfo[i];
+                    int cell5m = (Integer) o[1];
                     String weatherFileName = String.valueOf(cell5m) + ".WTH";
-                    int medianPlantingDate = (Integer) oi[5];
-                    String cropCode = (String) oi[6];
-                    String season = "Main";
-                    System.out.println("> Planting date "+(i+1)+"/"+numberOfUnits+", CELL5M: "+cell5m+" for "+cropCode+", "+season+" season");
+                    int medianPlantingDate = (Integer) o[5];
+                    String cropCode = (String) o[6];
+                    System.out.println("> Planting date "+(i+1)+"/"+numberOfUnits+", CELL5M: "+cell5m+" for "+cropCode);
 
                     // Scanning planting dates
-                    Future<Object[]> future = executor.submit(new ScanningPlantingDates(medianPlantingDate, weatherFileName, season, cropCode));
+                    Future<Object[]> future = executor.submit(new ScanningPlantingDates(medianPlantingDate, weatherFileName, cropCode));
                     list.add(future);
                 }
 
@@ -399,7 +380,7 @@ public class App
                 ex.printStackTrace();
             }
         }
-        System.out.println("> Runs for scanning planting dates done.");
+        System.out.println("> Runs for scanning planting dates done. Found "+plantingDatesToSimulate.size()+" planting dates.");
         return plantingDatesToSimulate;
     }
 
@@ -407,7 +388,6 @@ public class App
     @SuppressWarnings({"UseSpecificCatch", "CallToPrintStackTrace"})
     public static TreeMap<Object, Object> getFloweringDates(Object[] unitInfo, 
                                                             TreeMap<Object, Object> plantingDatesToSimulate,
-                                                            String climateOption,
                                                             int firstPlantingYear, int co2) throws IOException {
         TreeMap<Object, Object> daysToFloweringByCultivar = new TreeMap<>();
         String plantingDateOptionLabel = "PB";
@@ -440,7 +420,6 @@ public class App
                 {
                     Object[] o = (Object[])unitInfo[u];
                     int pdMean = (int)o[5];
-                    String season = "Main";
 
                     // Construct the cultivar option
                     String cropCode = (String)o[6];
@@ -452,7 +431,7 @@ public class App
                     // Weather name
                     int cell5m = (Integer)o[1];
                     String weatherFileName = String.valueOf(cell5m) + ".WTH";
-                    String weatherKey = weatherFileName.split("\\.")[0] + "_" + season + "_" + cropCode;
+                    String weatherKey = weatherFileName.split("\\.")[0] + "_" + cropCode;
 
                     // To use below
                     daysToFloweringByCultivar.put(cropCode + cultivarCode, new int[]{0, 0});
@@ -531,17 +510,23 @@ public class App
                     {
                         try
                         {
+                            
                             // Parse the cultivar code from TNAM
-                            String cropCultivarCode = record.get("CR") + record.get("TNAM").substring(0, 6);
+                            String cropCode = record.get("CR");
+                            String cultivarCode = record.get("TNAM").substring(0, 6);
+                            String cropCultivarCode = cropCode + cultivarCode;
 
                             // Parse PDAT/ADAT/HDAT for computing flowering/harvest days
                             int dtf, dth, pDDD = 0, aDDD = 0, hDDD = 0;
-                            if (record.get("PDAT").length() > 4)
-                                pDDD = Integer.parseInt(record.get("PDAT").substring(4));
+                            String pdat = record.get("PDAT");
+                            String adat = record.get("ADAT");
+                            String hdat = record.get("HDAT");
+                            if (pdat.length() > 4)
+                                pDDD = Integer.parseInt(pdat.substring(2));
                             if (record.get("ADAT").length() > 4)
-                                aDDD = Integer.parseInt(record.get("ADAT").substring(4));
+                                aDDD = Integer.parseInt(adat.substring(2));
                             if (record.get("HDAT").length() > 4)
-                                hDDD = Integer.parseInt(record.get("HDAT").substring(4));
+                                hDDD = Integer.parseInt(hdat.substring(2));
 
                             if (pDDD > 0 && aDDD > 0 && hDDD > 0)
                             {
@@ -624,7 +609,7 @@ public class App
             // Writing a CSV output file
             if (printDaysToFlowering)
             {
-                dataDaysToFlowering = directoryFloweringDates + fileDaysToFlowering + "_" + climateOption + ".csv";
+                dataDaysToFlowering = directoryFloweringDates + fileDaysToFlowering + ".csv";
                 System.out.println("> Writing " + dataDaysToFlowering + "...");
                 try (FileWriter writer = new FileWriter(dataDaysToFlowering);
                      CSVPrinter csvPrinter = new CSVPrinter(
@@ -654,10 +639,10 @@ public class App
     }
 
         // Run seasonal simulations
-    public static void runSeasonalSimulations(Object[] unitInfo, String weatherFileName,
-                                              TreeMap<Object, Object> plantingDatesToSimulate, String climateOption,
+    public static void runSeasonalSimulations(Object[] unitInfo, 
+                                              TreeMap<Object, Object> plantingDatesToSimulate,
                                               TreeMap<Object, Object> daysToFloweringByCultivar,
-                                              int firstPlantingYear, TreeMap<Integer, Integer> co2History)
+                                              int firstPlantingYear, int numberOfYears, TreeMap<Integer, Integer> co2History)
             throws ExecutionException, InterruptedException
     {
         int numberOfUnits = unitInfo.length;
@@ -672,7 +657,7 @@ public class App
         {
 
             // Status
-            String progress = climateOption + ", R" + (i+1) + "/" + numberOfUnits;
+            String progress = "R" + (i+1) + "/" + numberOfUnits;
 
             // Subset
             if (step4)
@@ -683,14 +668,13 @@ public class App
                     {
 
                         // Unit Information
-                        Object[] ou = (Object[]) unitInfo[i];
-                        String season = (String) ou[12];
+                        Object[] o = (Object[]) unitInfo[i];
 
                         // Construct the cultivar option
-                        String cropCode = (String)ou[6];
-                        String cultivarCode = (String)ou[7];
-                        String cultivarName = (String)ou[8];
-                        int[] cultivarInfo = (int[])ou[9];
+                        String cropCode = (String)o[6];
+                        String cultivarCode = (String)o[7];
+                        String cultivarName = (String)o[8];
+                        int[] cultivarInfo = (int[])o[9];
                         Object[] cultivarOption = new Object[]{ countryCode, cropCode, cultivarCode, cultivarName, cultivarInfo[0], cultivarInfo[1], cultivarInfo[2] };
                         String cropCultivarCode = cultivarOption[1] + (String)cultivarOption[2];
                         int daysToFlowering, daysToHarvest;
@@ -707,13 +691,15 @@ public class App
                         }
 
                         // Weather file and planting date
-                        String weatherKey = weatherFileName.split("\\.")[0] + "_" + season + "_" + cropCode;
+                        String cell5m = String.valueOf((Integer)o[1]);
+                        String weatherFileName = cell5m + ".WTH";
+                        String weatherKey = cell5m + "_" + cropCode;
                         int p = fixedPlantingDate;
                         if (!useFixedPlantingDate)
                         {
                             try
                             {
-                                p = (int)plantingDatesToSimulate.get(weatherKey);
+                                p = (int)(plantingDatesToSimulate.get(weatherKey));
                             }
                             catch(Exception e)
                             {
@@ -724,7 +710,7 @@ public class App
                         Object[] weatherAndPlantingDate = { weatherFileName, p };
 
                         // Multiple threads
-                        Future<Integer> future = executor.submit(new ThreadSeasonalRuns(ou, weatherAndPlantingDate, cultivarOption, daysToFlowering, daysToHarvest, climateOption, progress, firstPlantingYear, co2History));
+                        Future<Integer> future = executor.submit(new ThreadSeasonalRuns(o, weatherAndPlantingDate, cultivarOption, daysToFlowering, daysToHarvest, progress, firstPlantingYear, numberOfYears, co2History));
                         futures.add(future);
 
                     }

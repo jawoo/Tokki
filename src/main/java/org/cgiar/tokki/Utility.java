@@ -251,6 +251,29 @@ public class Utility
     }
 
     // Delete temporary output files from the [summary] directory to save storage space
+    public static void deleteSummaryFiles() throws InterruptedException
+    {
+        File folder = new File(App.directoryOutput);
+        File[] files = folder.listFiles((dir, name) -> name.endsWith(".csv"));
+        for (File file : files)
+        {
+            if (!file.delete())
+            {
+
+                // wait a bit then retry on Windows
+                if (file.exists())
+                {
+                    for (int i = 0; i < 6; i++)
+                    {
+                        delayBeforeRetry(500);
+                        System.gc();
+                        if (file.delete())
+                            break;
+                    }
+                }
+            }
+        }
+    }
     public static void deleteSummaryFiles(String wthCode) throws InterruptedException
     {
         File folder = new File(App.directoryOutput);

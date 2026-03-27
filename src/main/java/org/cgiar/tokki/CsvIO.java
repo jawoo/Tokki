@@ -18,7 +18,11 @@ public final class CsvIO {
     public static CSVParser openRfc4180(String path) throws IOException {
         // CSVParser is Closeable; callers should use try-with-resources.
         Reader in = new FileReader(path, StandardCharsets.UTF_8);
-        return CSVParser.parse(in, CSVFormat.RFC4180);
+        CSVFormat format = CSVFormat.RFC4180.builder()
+                .setHeader()
+                .setSkipHeaderRecord(true)
+                .get();
+        return CSVParser.parse(in, format);
     }
 
     public static CSVPrinter openDefaultWithHeader(String path, String... header) throws IOException {

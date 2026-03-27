@@ -19,24 +19,24 @@ public class ThreadSeasonalRuns implements Callable<Integer>
     Object[] cultivarOption;
     int daysToFlowering;
     int daysToHarvest;
-    String climateOption;
     String progress;
     int firstPlantingYear;
+    int numberOfYears;
     TreeMap<Integer, Integer> co2History;
     DecimalFormat df000 = new DecimalFormat("000");
 
     ThreadSeasonalRuns(Object[] o, Object[] weatherAndPlantingDate, Object[] cultivarOption,
-                       int daysToFlowering, int daysToHarvest, String climateOption,
-                       String progress, int firstPlantingYear, TreeMap<Integer, Integer> co2History)
+                       int daysToFlowering, int daysToHarvest,
+                       String progress, int firstPlantingYear, int numberOfYears, TreeMap<Integer, Integer> co2History)
     {
         this.o = o;
         this.weatherAndPlantingDate = weatherAndPlantingDate;
         this.cultivarOption = cultivarOption;
         this.daysToFlowering = daysToFlowering;
         this.daysToHarvest = daysToHarvest;
-        this.climateOption = climateOption;
         this.progress = progress;
         this.firstPlantingYear = firstPlantingYear;
+        this.numberOfYears = numberOfYears;
         this.co2History = co2History;
     }
 
@@ -77,7 +77,6 @@ public class ThreadSeasonalRuns implements Callable<Integer>
         {
 
             // Write soil profile
-            // soilProfile = Utility.updateSoilOrganicCarbonContents(soilProfile);  // <-- To handle erroneous SOC values in SoilGrids...
             soilProfile = Utility.updateSoilProfileDepth(soilProfile, soilRootingDepth);
 
             // Write soil file
@@ -267,7 +266,7 @@ public class ThreadSeasonalRuns implements Callable<Integer>
                         CO2s.add((Integer)c);
                 else
                 {
-                    int y = Integer.parseInt(climateOption.substring(0,4));
+                    int y = App.firstPlantingYear;
                     CO2s.add(co2History.get(y));
                 }
 
@@ -289,7 +288,7 @@ public class ThreadSeasonalRuns implements Callable<Integer>
                     int residueHarvestPct = residueHarvestPcts[switchResidue];
 
                     // Treatment label
-                    String label = "W"+scn[0]+"F"+df000.format(nRate)+"C"+df000.format(co2)+"|";
+                    String label = "W"+scn[0]+"F"+df000.format(nRate)+"C"+df000.format(co2);
 
                     // Water management and planting window
                     if (switchPlantingWindow==0)
@@ -346,13 +345,13 @@ public class ThreadSeasonalRuns implements Callable<Integer>
                     try
                     {
                         String weatherSequence = weatherAndPlantingDate[0].toString().substring(0,4);
-                        SnxWriterSeasonalRuns.runningTreatmentPackages(o, waterManagement, nRate, manureRate, cultivarOption, daysToFlowering, daysToHarvest, pdensityOption, residueHarvestPct, co2, weatherAndPlantingDate, label, firstPlantingYear);
+                        SnxWriterSeasonalRuns.runningTreatmentPackages(o, waterManagement, nRate, manureRate, cultivarOption, daysToFlowering, daysToHarvest, pdensityOption, residueHarvestPct, co2, weatherAndPlantingDate, label, firstPlantingYear, numberOfYears);
                         System.out.println("> T" + dfTT.format(threadID) + ", " + progress + ", S" + (s+1) + "/" + ns + ", " + runLabel + ", SEQ: " + weatherSequence);
                         exitCode = ExeRunner.dscsm048_seasonal("N");
                         if (exitCode == 0)
                         {
                             File outputSource = new File(App.directoryThreads + "T" + threadID + App.d + "summary.csv");
-                            File outputDestination = new File(App.directoryOutput + "U" + unitId + "_C" + cell5m + "_" + climateOption + "_S" + s + "_" + runLabel + "_Q" + weatherSequence + ".csv");
+                            File outputDestination = new File(App.directoryOutput + "U" + unitId + "_C" + cell5m + "_S" + s + "_" + runLabel + "_Q" + weatherSequence + ".csv");
                             outputDestination.setReadable(true, false);
                             outputDestination.setExecutable(true, false);
                             outputDestination.setWritable(true, false);

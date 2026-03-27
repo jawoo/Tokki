@@ -13,14 +13,12 @@ public class ScanningPlantingDates implements Callable<Object[]>
 {
     int medianPlantingDate;
     String weatherFileName;
-    String season;
     String cropCode;
 
-    ScanningPlantingDates(int medianPlantingDate, String weatherFileName, String season, String cropCode)
+    ScanningPlantingDates(int medianPlantingDate, String weatherFileName, String cropCode)
     {
         this.medianPlantingDate = medianPlantingDate;
         this.weatherFileName = weatherFileName;
-        this.season = season;
         this.cropCode = cropCode;
     }
 
@@ -109,7 +107,7 @@ public class ScanningPlantingDates implements Callable<Object[]>
         }
 
         // Return
-        String key = weatherFileName.split("\\.")[0] + "_" + season + "_" + cropCode;
+        String key = weatherFileName.split("\\.")[0] + "_" + cropCode;
         if (App.verbose) System.out.println("> Planting date for this location: "+key+" on "+selectedDate);
         return new Object[] { key, selectedDate };
 

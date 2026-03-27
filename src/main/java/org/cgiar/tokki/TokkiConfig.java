@@ -13,7 +13,9 @@ public record TokkiConfig(
         String dataPlantingDates,
         boolean[] switchScenarios,
         boolean useFixedPlantingDate,
-        int fixedPlantingDate
+        int fixedPlantingDate,
+        int firstPlantingYear,
+        int numberOfYears
 ) 
 {
 }

@@ -25,7 +25,8 @@ public class SnxWriterSeasonalRuns
             int co2,
             Object[] weatherAndPlantingDate,
             String label,
-            int firstPlantingYear
+            int firstPlantingYear,
+            int numberOfYears
             ) throws InterruptedException {
 
         // Thread ID?
@@ -99,10 +100,9 @@ $BATCH(SEQUENCE)
 
         // Retrieval
         int pdate = (Integer)weatherAndPlantingDate[1];
-        String weatherCode = weatherAndPlantingDate[0].toString().substring(0,4);
 
         snxSectionTreatments +=
-                dfTT.format(tn)+" 1 0 0 "+label+weatherCode+"            1 "+dfTT.format(tn)+"  0  1 "+dfTT.format(tn)+"  "+mi+"  "+mf+"  "+mr+"  0  0  1  "+mh+"  1\n";
+                dfTT.format(tn)+" 1 0 0 "+label+"                 1 "+dfTT.format(tn)+"  0  1 "+dfTT.format(tn)+"  "+mi+"  "+mf+"  "+mr+"  0  0  1  "+mh+"  1\n";
 
         snxSectionFieldLevel1 +=
                 dfTT.format(tn)+" "+idField+" "+"WEATHERS"+"   -99     0 IB000     0     0 00000 -99    180  "+soilProfileID+" -99\n";
@@ -277,7 +277,7 @@ $BATCH(SEQUENCE)
         // Simulation controls
         String irrig = "D";  if (isRice)  irrig = "R";
         String harvs = "M";  if (isWheat) harvs = "R";
-        String nyers = "01"; //if (isWheat) nyers = "05";
+        String nyers = dfTT.format(numberOfYears);
         String snxSectionSimulationControls = """
 
 *SIMULATION CONTROLS
