@@ -194,7 +194,7 @@ public class Utility
         String model = switch (cropCode != null ? cropCode : "") 
         {
             case "BA", "MZ", "SG", "WH" -> "CER";
-            case "FB", "CH" -> "GRO";
+            case "SB", "FB", "CH" -> "GRO";
             case "TF" -> "APS";
             default -> "";
         };
@@ -209,6 +209,7 @@ public class Utility
             case "FB" -> new int[] { 30, 40 };
             case "CH" -> new int[] { 32, 12 };
             case "MZ" -> new int[] { 8, 60 };
+            case "SB" -> new int[] { 50, 5 };
             case "SG" -> new int[] { 20, 100 };
             case "TF" -> new int[] { 900, 60 };
             case "WH" -> new int[] { 250, 70 };

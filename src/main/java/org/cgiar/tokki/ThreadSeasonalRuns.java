@@ -45,12 +45,11 @@ public class ThreadSeasonalRuns implements Callable<Integer>
     {
 
         // Modeling unit information
-        int unitId = (Integer) o[0];
-        int cell5m = (Integer) o[1];
+        int unitId = (Integer)o[0];
+        int cell5m = (Integer)o[1];
         String soilProfileID = (String)o[2];
         String soilProfile = (String)o[3];
         int soilRootingDepth = (Integer)o[4];
-        String season = (String)o[12];
         DecimalFormat dfTT = new DecimalFormat("00");
 
         // Thread ID?
@@ -344,14 +343,13 @@ public class ThreadSeasonalRuns implements Callable<Integer>
                     // Run it
                     try
                     {
-                        String weatherSequence = weatherAndPlantingDate[0].toString().substring(0,4);
                         SnxWriterSeasonalRuns.runningTreatmentPackages(o, waterManagement, nRate, manureRate, cultivarOption, daysToFlowering, daysToHarvest, pdensityOption, residueHarvestPct, co2, weatherAndPlantingDate, label, firstPlantingYear, numberOfYears);
-                        System.out.println("> T" + dfTT.format(threadID) + ", " + progress + ", S" + (s+1) + "/" + ns + ", " + runLabel + ", SEQ: " + weatherSequence);
+                        System.out.println("> T" + dfTT.format(threadID) + ", " + progress + ", S" + (s+1) + "/" + ns + ", " + runLabel);
                         exitCode = ExeRunner.dscsm048_seasonal("N");
                         if (exitCode == 0)
                         {
                             File outputSource = new File(App.directoryThreads + "T" + threadID + App.d + "summary.csv");
-                            File outputDestination = new File(App.directoryOutput + "U" + unitId + "_C" + cell5m + "_S" + s + "_" + runLabel + "_Q" + weatherSequence + ".csv");
+                            File outputDestination = new File(App.directoryOutput + "U" + unitId + "_C" + cell5m + "_S" + s + "_" + runLabel + ".csv");
                             outputDestination.setReadable(true, false);
                             outputDestination.setExecutable(true, false);
                             outputDestination.setWritable(true, false);
@@ -360,7 +358,7 @@ public class ThreadSeasonalRuns implements Callable<Integer>
                     }
                     catch (IOException | InterruptedException ex)
                     {
-                        System.err.println("> Seasonal runs: Error at T" + threadID + " for S" + s + "_" + runLabel + "_" + season + " (" + ex + ")");
+                        System.err.println("> Seasonal runs: Error at T" + threadID + " for S" + s + "_" + runLabel + " (" + ex + ")");
                     }
 
                 } // for (Object i: inputCombinations)
