@@ -284,7 +284,7 @@ $BATCH(SEQUENCE)
 @N GENERAL     NYERS NREPS START SDATE RSEED SNAME.................... SMODEL
  1 GE             %s     1     S %s  4537 CROP
 @N OPTIONS     WATER NITRO SYMBI PHOSP POTAS DISES  CHEM  TILL   CO2
- 1 OP              Y     Y     N     N     N     N     N     N     D
+ 1 OP              Y     Y     Y     N     N     N     N     N     D
 @N METHODS     WTHER INCON LIGHT EVAPO INFIL PHOTO HYDRO NSWIT MESOM MESEV MESOL
  1 ME              G     M     E     R     S     C     R     1     P     S     2
 @N MANAGEMENT  PLANT IRRIG FERTI RESID HARVS
@@ -305,7 +305,7 @@ $BATCH(SEQUENCE)
 @N GENERAL     NYERS NREPS START SDATE RSEED SNAME.................... SMODEL
  2 GE              1     1     S %s  2150 FALLOW
 @N OPTIONS     WATER NITRO SYMBI PHOSP POTAS DISES  CHEM  TILL   CO2
- 2 OP              Y     Y     N     N     N     N     N     N     D
+ 2 OP              Y     Y     Y     N     N     N     N     N     D
 @N METHODS     WTHER INCON LIGHT EVAPO INFIL PHOTO HYDRO NSWIT MESOM MESEV MESOL
  2 ME              G     M     E     R     S     C     R     1     P     S     2
 @N MANAGEMENT  PLANT IRRIG FERTI RESID HARVS

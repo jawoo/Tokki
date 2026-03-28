@@ -15,9 +15,9 @@ mvn -version
 ## Compile DSSAT
 
 ```bash
-sudo yum install gfortran
-sudo yum install maven
-sudo yum install cmake
+sudo apt install gfortran
+sudo apt install maven
+sudo apt install cmake
 mkdir codebase
 cd codebase
 git clone https://github.com/dssat/dssat-csm-os
@@ -54,7 +54,7 @@ cp ~/codebase/dssat-csm-os/release/bin/dscsm048 ./.csm/DSCSM048.EXE
 Create some additional directories to collect and process temporary files
 
 ```bash
-cd ~/codebase/Toco/res/.temp
+cd ~/codebase/Tokki/res/.temp
 mkdir summary multipleplanting flowering planting error
 ```
 
@@ -71,6 +71,7 @@ You can flag as many cultivars as you like.
 ## Compile the project
 
 ```bash
+cd ~/codebase/Tokki
 mvn clean compile
 ```
 
@@ -95,7 +96,7 @@ java -jar target/tokki-1.0-SNAPSHOT-jar-with-dependencies.jar
 
 ## Note
 
-- Ger the weather data for USA covering the maize and soybean grid cells from [here](https://cgiar-my.sharepoint.com/:u:/g/personal/j_koo_cgiar_org/IQCLPhLwhm9JRKrZJ_KLMUb1AXMOhLSemFW72fI61zo_rRM?e=9VogL4) and extract the subfolder to ./weather directory.
+- Get the weather data for USA covering the maize and soybean grid cells from [here](https://cgiar-my.sharepoint.com/:u:/g/personal/j_koo_cgiar_org/IQCLPhLwhm9JRKrZJ_KLMUb1AXMOhLSemFW72fI61zo_rRM?e=9VogL4) and extract the subfolder to ./weather directory.
 - After all the batch runs are completed, you can pick up the merged CSV output file at ~/codebase/Toco/res/result directory.
 - The values of model input parameters are defined in the "config.yml" file in the root directory.
 

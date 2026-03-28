@@ -31,7 +31,7 @@ scenarioSwitch:
 plantingDateOptions:
   useFixedPlantingDate: 0
   fixedPlantingDate: 135
-useRecommendedNitrogenFertilizerRate: 0
+useRecommendedNitrogenFertilizerRate: 1
 nitrogenFertilizerRates:
 # - 0
  - 30
