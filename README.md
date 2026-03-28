@@ -54,6 +54,8 @@ cp ~/codebase/dssat-csm-os/release/bin/dscsm048 ./.csm/DSCSM048.EXE
 Create some additional directories to collect and process temporary files
 
 ```bash
+cd ~/codebase/Tokki/res
+mkdir result
 cd ~/codebase/Tokki/res/.temp
 mkdir summary multipleplanting flowering planting error
 ```
