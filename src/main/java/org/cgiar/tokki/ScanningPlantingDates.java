@@ -44,9 +44,9 @@ public class ScanningPlantingDates implements Callable<Object[]>
                 {
                     String line = wtg.nextLine();
                     String[] values = line.split("\\s+");
-                    if (values.length==5 && Utility.isNumeric(values[0].substring(2)))
+                    if (values.length==5 && Utility.isNumeric(values[0].substring(4)))
                     {
-                        int ddd  = Integer.parseInt(values[0].substring(2));
+                        int ddd  = Integer.parseInt(values[0].substring(4));
                         int newRain = (int)Double.parseDouble(values[4]);
                         int previousRain = rainfallByDate.get(ddd);
                         rainfallByDate.put(ddd, previousRain+newRain);

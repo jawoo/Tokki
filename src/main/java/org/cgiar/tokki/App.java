@@ -522,11 +522,11 @@ public class App
                             String adat = record.get("ADAT");
                             String hdat = record.get("HDAT");
                             if (pdat.length() > 4)
-                                pDDD = Integer.parseInt(pdat.substring(2));
+                                pDDD = Integer.parseInt(pdat.substring(4));
                             if (record.get("ADAT").length() > 4)
-                                aDDD = Integer.parseInt(adat.substring(2));
+                                aDDD = Integer.parseInt(adat.substring(4));
                             if (record.get("HDAT").length() > 4)
-                                hDDD = Integer.parseInt(hdat.substring(2));
+                                hDDD = Integer.parseInt(hdat.substring(4));
 
                             if (pDDD > 0 && aDDD > 0 && hDDD > 0)
                             {
