@@ -57,18 +57,23 @@ Create some additional directories to collect and process temporary files
 cd ~/codebase/Tokki/res
 mkdir result
 cd ~/codebase/Tokki/res/.temp
-mkdir summary multipleplanting flowering planting error
+mkdir summary flowering planting error
 ```
 
 ## Selecting cultivars
 
-You'll need to flag in the cultivar file (*.CUL) to tell the program which cultivar to use. Open the cultivar file for the crop you'd like to use (e.g., MZCER.048.CUL) in the res/.csm directory and add a space and an asterisk at the end of the line, like the following:
+You'll need to flag in the cultivar file (*.CUL) to tell the program which cultivar to use. Open the cultivar file for the crop you'd like to use (e.g., MZCER048.CUL) in the res/.csm directory and add a space and an asterisk at the end of the line, like the following:
 
 ```
 990002 MEDIUM SEASON        . IB0001 200.0 0.300 800.0 700.0  8.50 38.90 *
 ```
 
 You can flag as many cultivars as you like.
+
+## Weather data files
+
+Get the weather data for USA covering the maize and soybean grid cells from [here](https://cgiar-my.sharepoint.com/:u:/g/personal/j_koo_cgiar_org/IQCLPhLwhm9JRKrZJ_KLMUb1AXMOhLSemFW72fI61zo_rRM?e=9VogL4) and extract the subfolder to ./weather directory.
+
 
 ## Compile the project
 
@@ -98,7 +103,5 @@ java -jar target/tokki-1.0-SNAPSHOT-jar-with-dependencies.jar
 
 ## Note
 
-- Get the weather data for USA covering the maize and soybean grid cells from [here](https://cgiar-my.sharepoint.com/:u:/g/personal/j_koo_cgiar_org/IQCLPhLwhm9JRKrZJ_KLMUb1AXMOhLSemFW72fI61zo_rRM?e=9VogL4) and extract the subfolder to ./weather directory.
 - After all the batch runs are completed, you can pick up the merged CSV output file at ~/codebase/Toco/res/result directory.
 - The values of model input parameters are defined in the "config.yml" file in the root directory.
-
