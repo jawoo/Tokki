@@ -388,6 +388,8 @@ public class App
         {
             try
             {
+                ConsoleProgress plantingScanProgress = new ConsoleProgress("Planting date scan", numberOfUnits);
+
                 ExecutorService executor = Executors.newFixedThreadPool(numberOfThreads);
                 List<Future<Object[]>> list = new ArrayList<>();
 
@@ -399,10 +401,9 @@ public class App
                     String weatherFileName = String.valueOf(cell5m) + ".WTH";
                     int medianPlantingDate = (Integer) o[5];
                     String cropCode = (String) o[6];
-                    System.out.println("> Planting date "+(i+1)+"/"+numberOfUnits+", CELL5M: "+cell5m+" for "+cropCode);
 
                     // Scanning planting dates (per year)
-                    Future<Object[]> future = executor.submit(new ScanningPlantingDates(medianPlantingDate, weatherFileName, cropCode, firstPlantingYear, numberOfYears));
+                    Future<Object[]> future = executor.submit(new ScanningPlantingDates(medianPlantingDate, weatherFileName, cropCode, firstPlantingYear, numberOfYears, plantingScanProgress));
                     list.add(future);
                 }
 
@@ -420,6 +421,7 @@ public class App
                         plantingDatesToSimulate.put(keyPrefix + "_" + entry.getKey(), plantingDate);
                     }
                 }
+                plantingScanProgress.finish();
                 executor.shutdown();
 
             }

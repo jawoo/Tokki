@@ -23,15 +23,17 @@ public class ScanningPlantingDates implements Callable<Object[]>
     String cropCode;
     int firstYear;
     int numberOfYears;
+    final ConsoleProgress plantingScanProgress;
 
     ScanningPlantingDates(int medianPlantingDate, String weatherFileName, String cropCode,
-                          int firstYear, int numberOfYears)
+                          int firstYear, int numberOfYears, ConsoleProgress plantingScanProgress)
     {
         this.medianPlantingDate = medianPlantingDate;
         this.weatherFileName    = weatherFileName;
         this.cropCode           = cropCode;
         this.firstYear          = firstYear;
         this.numberOfYears      = numberOfYears;
+        this.plantingScanProgress = plantingScanProgress;
     }
 
     @Override
@@ -96,6 +98,9 @@ public class ScanningPlantingDates implements Callable<Object[]>
             if (App.verbose)
                 System.out.println("> " + keyPrefix + "_" + yr + " → planting DDD " + ddd);
         }
+
+        if (plantingScanProgress != null)
+            plantingScanProgress.step();
 
         return new Object[] { keyPrefix, yearToPlantingDate };
     }
