@@ -125,7 +125,6 @@ public class App
             directoryError = layout.tempErrors();
 
             // Scenario switch
-            cfg.dataPlantingDates();
             boolean[] switches = cfg.switchScenarios();
             System.arraycopy(switches, 0, switchScenarios, 0, Math.min(switches.length, switchScenarios.length));
 
@@ -222,7 +221,6 @@ public class App
     
         // CO2
         TreeMap<Integer, Integer> co2History = Utility.getCO2History(directoryInput);   
-        int co2 = co2History.get(firstPlantingYear);
 
         // Get unit information
         Object[] unitInfo = Utility.getUnitInfo(tableNameUnitInformation, directoryInput, limitForDebugging);
@@ -235,6 +233,53 @@ public class App
         */
         System.out.println("> First planting year: "+firstPlantingYear);
         TreeMap<Object, Object> plantingDatesToSimulate = getPlantingDates(unitInfo);
+
+        // Write planting-date debug CSV (CELL5M, X, Y, CropCode, Year, PlantingDOY)
+        if (step2 && !plantingDatesToSimulate.isEmpty())
+        {
+            try
+            {
+                // Deduplicate units to one (CELL5M, cropCode) → (X, Y) entry
+                // (multiple cultivars share the same planting date per cell+crop+year)
+                TreeMap<String, double[]> cellCropToXY = new TreeMap<>();
+                for (Object unitObj : unitInfo)
+                {
+                    Object[] o  = (Object[]) unitObj;
+                    String   k  = o[1] + "_" + o[6];           // CELL5M_CROPCODE
+                    cellCropToXY.putIfAbsent(k, new double[]{ (double) o[10], (double) o[11] });
+                }
+
+                String pdCsvPath = directoryInputPlatingDates + "plantingdates.csv";
+                try (FileWriter pdWriter = new FileWriter(pdCsvPath);
+                     CSVPrinter pdCsv = new CSVPrinter(pdWriter,
+                             CSVFormat.DEFAULT.builder()
+                                     .setHeader("CELL5M", "X", "Y", "CropCode", "Year", "PlantingDOY")
+                                     .get()))
+                {
+                    for (Map.Entry<String, double[]> entry : cellCropToXY.entrySet())
+                    {
+                        String[] kp       = entry.getKey().split("_");
+                        String   cell5m   = kp[0];
+                        String   cropCode = kp[1];
+                        double   x        = entry.getValue()[0];
+                        double   y        = entry.getValue()[1];
+
+                        for (int yr = firstPlantingYear; yr < firstPlantingYear + numberOfYears; yr++)
+                        {
+                            Object pdObj = plantingDatesToSimulate.get(cell5m + "_" + cropCode + "_" + yr);
+                            if (pdObj != null)
+                                pdCsv.printRecord(cell5m, x, y, cropCode, yr, pdObj);
+                        }
+                    }
+                    pdCsv.flush();
+                }
+                System.out.println("> Planting dates written: " + pdCsvPath);
+            }
+            catch (Exception ex)
+            {
+                System.err.println("> Failed to write planting dates CSV (" + ex + ")");
+            }
+        }
 
 
         /*
@@ -616,6 +661,9 @@ public class App
             // Global default fallback (60 DTF, 120 DTH) used when no key matches
             daysToFloweringByCultivar.put("DEFAULT", new int[]{ 60, 120 });
 
+            // Replace any remaining zero-valued entries so the lookup table is complete
+            fillMissingDtf(daysToFloweringByCultivar);
+
             // Writing a CSV output file
             if (printDaysToFlowering)
             {
@@ -648,7 +696,7 @@ public class App
         return daysToFloweringByCultivar;
     }
 
-        // Run seasonal simulations
+    // Run seasonal simulations
     public static void runSeasonalSimulations(Object[] unitInfo, 
                                               TreeMap<Object, Object> plantingDatesToSimulate,
                                               TreeMap<Object, Object> daysToFloweringByCultivar,
@@ -778,6 +826,141 @@ public class App
 
     }
 
+    /**
+     * Fills zero-valued DTF/DTH entries in {@code dtfMap} so the lookup table
+     * contains no zeros after simulation failures.
+     *
+     * Key format:  cropCultivar(8 chars) + "_" + latBand + "_" + year
+     *              e.g. "MZIB0032_30_2021"
+     * Special key: "DEFAULT" (excluded from fill logic).
+     *
+     * Pass 1 – Missing years within a (cultivar, latBand) group:
+     *   Uses the mean DTF/DTH of whichever years in the same group succeeded.
+     *
+     * Pass 2 – Groups where every year failed:
+     *   Searches adjacent latitude bands (±latBandSize, ±2*latBandSize, …) and
+     *   uses the mean of any valid values found at the nearest offset.
+     *   Falls back to DEFAULT only if no adjacent band has any data at all.
+     */
+    private static void fillMissingDtf(TreeMap<Object, Object> dtfMap)
+    {
+        // Retrieve the last-resort default (always present at this call site)
+        Object defObj = dtfMap.get("DEFAULT");
+        int[] defaultVal = (defObj != null) ? (int[]) defObj : new int[]{ 60, 120 };
 
-    
+        // ── Index all non-DEFAULT keys by their (cultivar, latBand) group ──────
+        // Group key: cropCultivar + "_" + latBand  (e.g. "MZIB0032_30")
+        TreeMap<String, List<String>> groupToYearKeys = new TreeMap<>();
+        for (Object keyObj : dtfMap.keySet())
+        {
+            String key = (String) keyObj;
+            if (key.equals("DEFAULT")) continue;
+            String[] parts = key.split("_");
+            if (parts.length != 3) continue;                          // safety guard
+            String groupKey = parts[0] + "_" + parts[1];
+            groupToYearKeys.computeIfAbsent(groupKey, k -> new ArrayList<>()).add(key);
+        }
+
+        // ── Pass 1: fill individual failed years with same-group mean ─────────
+        Set<String> allFailedGroups = new HashSet<>();
+
+        for (Map.Entry<String, List<String>> entry : groupToYearKeys.entrySet())
+        {
+            String       groupKey = entry.getKey();
+            List<String> yearKeys = entry.getValue();
+
+            List<int[]>  good = new ArrayList<>();
+            List<String> bad  = new ArrayList<>();
+            for (String yk : yearKeys)
+            {
+                int[] v = (int[]) dtfMap.get(yk);
+                if (v != null && v[0] > 0 && v[1] > 0) good.add(v);
+                else                                     bad.add(yk);
+            }
+
+            if (bad.isEmpty()) continue;            // every year succeeded
+
+            if (!good.isEmpty())
+            {
+                int dtfSum = 0, dthSum = 0;
+                for (int[] v : good) { dtfSum += v[0]; dthSum += v[1]; }
+                int[] fill = { dtfSum / good.size(), dthSum / good.size() };
+                for (String yk : bad)
+                {
+                    dtfMap.put(yk, fill);
+                    System.out.println("> DTF fill (same-band mean): " + yk
+                            + " → DTF=" + fill[0] + " DTH=" + fill[1]);
+                }
+            }
+            else
+            {
+                allFailedGroups.add(groupKey);      // all years failed; needs Pass 2
+            }
+        }
+
+        // ── Pass 2: fill completely-failed groups from adjacent lat bands ──────
+        // Collect updates in a separate map to avoid ConcurrentModificationException.
+        TreeMap<String, int[]> updates = new TreeMap<>();
+
+        for (String failedGroup : allFailedGroups)
+        {
+            String[] gp       = failedGroup.split("_");
+            String   cultivar = gp[0];
+            int      latBand  = Integer.parseInt(gp[1]);
+
+            int[] fill = null;
+
+            // Expand outward one band at a time; stop at the first offset that
+            // yields any valid data from either the band above or below.
+            for (int offset = 1; fill == null && offset <= 20; offset++)
+            {
+                List<int[]> candidates = new ArrayList<>();
+                int[] adjBands = { latBand + offset * latBandSize,
+                                   latBand - offset * latBandSize };
+
+                for (int adjBand : adjBands)
+                {
+                    String adjGroup = cultivar + "_" + adjBand;
+                    if (allFailedGroups.contains(adjGroup)) continue;   // also all-failed
+                    List<String> adjKeys = groupToYearKeys.get(adjGroup);
+                    if (adjKeys == null) continue;                      // band not in dataset
+                    for (String yk : adjKeys)
+                    {
+                        int[] v = (int[]) dtfMap.get(yk);
+                        // After Pass 1 every non-failed-group key is non-zero
+                        if (v != null && v[0] > 0 && v[1] > 0) candidates.add(v);
+                    }
+                }
+
+                if (!candidates.isEmpty())
+                {
+                    int dtfSum = 0, dthSum = 0;
+                    for (int[] v : candidates) { dtfSum += v[0]; dthSum += v[1]; }
+                    fill = new int[]{ dtfSum / candidates.size(), dthSum / candidates.size() };
+                }
+            }
+
+            if (fill == null)
+            {
+                fill = defaultVal;                  // absolute last resort
+                System.out.println("> DTF fill (DEFAULT): " + failedGroup);
+            }
+
+            List<String> yearKeys = groupToYearKeys.get(failedGroup);
+            if (yearKeys != null)
+            {
+                for (String yk : yearKeys)
+                {
+                    updates.put(yk, fill);
+                    System.out.println("> DTF fill (adj-band mean): " + yk
+                            + " → DTF=" + fill[0] + " DTH=" + fill[1]);
+                }
+            }
+        }
+
+        dtfMap.putAll(updates);
+    }
+
+
+
 }

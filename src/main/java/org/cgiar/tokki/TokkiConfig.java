@@ -10,7 +10,6 @@ public record TokkiConfig(
         Object[] nitrogenFertilizerRates,
         Object[] atmosphericCO2Values,
         DirectoryLayout directories,
-        String dataPlantingDates,
         boolean[] switchScenarios,
         boolean useFixedPlantingDate,
         int fixedPlantingDate,

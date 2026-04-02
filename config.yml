@@ -1,7 +1,7 @@
 tableNameUnitInformation: unit-information_usa-mzsb-47707
 countryCode: USA
-numberOfThreads: 10
-limitForDebugging: 100
+numberOfThreads: 1
+limitForDebugging: 10
 firstPlantingYear: 2021
 numberOfYears: 5
 directory:
@@ -17,8 +17,6 @@ directory:
   flowering: flowering
   plantingDates: planting
   errors: error
-dataFile:
-  plantingDates: pdates.csv
 scenarioCombinations: 0
 scenarioSwitch:
   waterManagement: 0
@@ -31,7 +29,7 @@ scenarioSwitch:
 plantingDateOptions:
   useFixedPlantingDate: 0
   fixedPlantingDate: 135
-latBandSize: 10          # degrees latitude per band for phenology stratification
+latBandSize: 1          # degrees latitude per band for phenology stratification
 useRecommendedNitrogenFertilizerRate: 1
 nitrogenFertilizerRates:
 # - 0

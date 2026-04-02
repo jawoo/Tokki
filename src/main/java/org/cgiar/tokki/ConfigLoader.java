@@ -55,9 +55,6 @@ public final class ConfigLoader
                 working + directories.get("temp") + separator + directories.get("errors") + separator
         );
 
-        Map<String, String> dataFiles = (Map<String, String>) config.get("dataFile");
-        String dataPlantingDates = layout.tempPlantingDates() + dataFiles.get("plantingDates");
-
         Map<String, Integer> scenarioSwitches = (Map<String, Integer>) config.get("scenarioSwitch");
         boolean[] switchScenarios = new boolean[7];
         switchScenarios[0] = scenarioSwitches.get("waterManagement") > 0;
@@ -85,7 +82,6 @@ public final class ConfigLoader
                 nitrogenFertilizerRates,
                 atmosphericCO2Values,
                 layout,
-                dataPlantingDates,
                 switchScenarios,
                 useFixedPlantingDate,
                 fixedPlantingDate,
