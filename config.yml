@@ -1,7 +1,7 @@
 tableNameUnitInformation: unit-information_usa-mzsb-47707
 countryCode: USA
-numberOfThreads: 48    # Keep the maximum number of threads per box at 48
-limitForDebugging: 0
+numberOfThreads: 10    # Keep the maximum number of threads per box at 48
+limitForDebugging: 100
 firstPlantingYear: 2021
 numberOfYears: 5
 directory:

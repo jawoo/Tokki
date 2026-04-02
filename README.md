@@ -3,13 +3,16 @@
 ## Prerequisites
 
 - **Java 25** (or compatible JRE)
-- **Apache Maven** 3.6 or later
 
-Verify installations:
+This repository includes the **Maven Wrapper** (`./mvnw`), which downloads **Apache Maven 3.9.10** on first use. Prefer that over a system `mvn` install: older Maven releases (for example 3.6.x from `apt`) ship libraries that trigger JDK 24+ warnings about deprecated `sun.misc.Unsafe` and related APIs when you run `mvn package`.
+
+If you use a global Maven install instead, use **3.9.10 or newer** (3.9.12+ once available is ideal for further Guice fixes).
+
+Verify Java:
 
 ```bash
 java -version
-mvn -version
+./mvnw -version
 ```
 
 ## Compile DSSAT
@@ -79,13 +82,13 @@ Get the weather data for USA covering the maize and soybean grid cells from [her
 
 ```bash
 cd ~/codebase/Tokki
-mvn clean compile
+./mvnw clean compile
 ```
 
 Create the JAR (including dependencies):
 
 ```bash
-mvn clean package
+./mvnw clean package
 ```
 
 This produces:
