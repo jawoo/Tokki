@@ -15,7 +15,8 @@ public record TokkiConfig(
         boolean useFixedPlantingDate,
         int fixedPlantingDate,
         int firstPlantingYear,
-        int numberOfYears
-) 
+        int numberOfYears,
+        int latBandSize
+)
 {
 }

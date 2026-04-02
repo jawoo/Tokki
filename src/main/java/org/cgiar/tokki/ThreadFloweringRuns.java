@@ -17,9 +17,10 @@ public class ThreadFloweringRuns implements Callable<Integer>
     Object[] cultivarOption;
     String pdateOption;
     int co2;
-    int firstPlantingYear;
+    int latBand;
+    int simYear;
 
-    ThreadFloweringRuns(Object[] o, int threadID, String weatherFileName, int pd, Object[] cultivarOption, String pdateOption, int co2, int firstPlantingYear)
+    ThreadFloweringRuns(Object[] o, int threadID, String weatherFileName, int pd, Object[] cultivarOption, String pdateOption, int co2, int latBand, int simYear)
     {
         this.o = o;
         this.threadID = threadID;
@@ -28,7 +29,8 @@ public class ThreadFloweringRuns implements Callable<Integer>
         this.cultivarOption = cultivarOption;
         this.pdateOption = pdateOption;
         this.co2 = co2;
-        this.firstPlantingYear = firstPlantingYear;
+        this.latBand = latBand;
+        this.simYear = simYear;
     }
 
     @Override
@@ -97,7 +99,7 @@ public class ThreadFloweringRuns implements Callable<Integer>
             // Write SNX file
             try
             {
-                SnxWriterFloweringRuns.runningTreatmentPackages(threadID, o, pd, cultivarOption, co2, firstPlantingYear);
+                SnxWriterFloweringRuns.runningTreatmentPackages(threadID, o, pd, cultivarOption, co2, simYear);
             }
             catch (NumberFormatException | InterruptedException ex)
             {
@@ -115,7 +117,7 @@ public class ThreadFloweringRuns implements Callable<Integer>
                 File outputSource = new File(App.directoryThreads+"T"+threadID+App.d+"summary.csv");
                 if (outputSource.exists())
                 {
-                    File outputDestination = new File(App.directoryFloweringDates+weatherFileName.split("\\.")[0]+"_"+pdateOption+"_"+cultivarOption[1]+"_"+cultivarOption[2]+"_"+timeStamp+".csv");
+                    File outputDestination = new File(App.directoryFloweringDates+weatherFileName.split("\\.")[0]+"_"+pdateOption+"_"+cultivarOption[1]+"_"+cultivarOption[2]+"_Y"+simYear+"_L"+latBand+"_"+timeStamp+".csv");
                     outputDestination.setReadable(true, false);
                     outputDestination.setExecutable(true, false);
                     outputDestination.setWritable(true, false);

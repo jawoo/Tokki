@@ -16,7 +16,6 @@ import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ExecutionException;
@@ -85,6 +84,7 @@ public class App
     static boolean useRecommendedNitrogenFertilizerRate = true;
     static boolean useFixedPlantingDate = false;
     static int fixedPlantingDate = 135;
+    static int latBandSize = 10;   // degrees latitude per phenology band
     static Object[] nitrogenFertilizerRates;
     static Object[] atmosphericCO2Values;
     static String nr = System.lineSeparator();
@@ -129,9 +129,10 @@ public class App
             boolean[] switches = cfg.switchScenarios();
             System.arraycopy(switches, 0, switchScenarios, 0, Math.min(switches.length, switchScenarios.length));
 
-            // Fixed planting date
+            // Fixed planting date and phenology stratification
             useFixedPlantingDate = cfg.useFixedPlantingDate();
             fixedPlantingDate = cfg.fixedPlantingDate();
+            latBandSize = cfg.latBandSize();
 
         }
         catch (FileNotFoundException e)
@@ -243,7 +244,7 @@ public class App
         TreeMap<Object, Object> daysToFloweringByCultivar = new TreeMap<>();
         try
         {
-            daysToFloweringByCultivar = getFloweringDates(unitInfo, plantingDatesToSimulate, firstPlantingYear, co2);
+            daysToFloweringByCultivar = getFloweringDates(unitInfo, plantingDatesToSimulate, co2History);
         }
         catch (Exception ex)
         {
@@ -389,74 +390,89 @@ public class App
         return plantingDatesToSimulate;
     }
 
-    // Find average flowering dates
+    // Find flowering dates stratified by (cultivar, latitude band, simulation year).
+    // Key format in daysToFloweringByCultivar: cropCode+cultivarCode+"_"+latBand+"_"+year
+    // e.g. "MZIB0032_30_2021"
     @SuppressWarnings({"UseSpecificCatch", "CallToPrintStackTrace"})
-    public static TreeMap<Object, Object> getFloweringDates(Object[] unitInfo, 
+    public static TreeMap<Object, Object> getFloweringDates(Object[] unitInfo,
                                                             TreeMap<Object, Object> plantingDatesToSimulate,
-                                                            int firstPlantingYear, int co2) throws IOException {
+                                                            TreeMap<Integer, Integer> co2History) throws IOException {
         TreeMap<Object, Object> daysToFloweringByCultivar = new TreeMap<>();
         String plantingDateOptionLabel = "PB";
         int numberOfUnits = unitInfo.length;
 
-        // Distribute weather files over threads
-        if (step3 && numberOfUnits>0)
+        if (step3 && numberOfUnits > 0)
         {
             int threadID = 0;
             ExecutorService executor = Executors.newFixedThreadPool(numberOfThreads);
             List<Future<Integer>> futures = new ArrayList<>();
 
-            // Let's just pick 200 random units
-            int[] subUnits = new int[numberOfUnits];
-            if (numberOfUnits>20)
+            // Build a map of dtfKey → representative unit for every unique
+            // (cropCode, cultivarCode, latBand, year) combination present in unitInfo.
+            // One DSSAT flowering call is submitted per combination.
+            TreeMap<String, Object[]> combinationToUnit = new TreeMap<>();
+            for (Object unitObj : unitInfo)
             {
-                subUnits = new int[200];
-                Random random = new Random();
-                for (int i = 0; i < subUnits.length; i++)
-                    subUnits[i] = random.nextInt(numberOfUnits);
-            }
-            else
-                for (int i = 0; i < numberOfUnits; i++)
-                    subUnits[i] = i;
+                Object[] o = (Object[]) unitObj;
+                String cropCode    = (String) o[6];
+                String cultivarCode = (String) o[7];
+                double unitY       = (double) o[11];
+                int latBand = (int)(Math.floor(unitY / latBandSize) * latBandSize);
 
-            // Looping through subUnits
-            for (int u: subUnits)
+                for (int yr = firstPlantingYear; yr < firstPlantingYear + numberOfYears; yr++)
+                {
+                    String dtfKey = cropCode + cultivarCode + "_" + latBand + "_" + yr;
+                    if (!combinationToUnit.containsKey(dtfKey))
+                    {
+                        combinationToUnit.put(dtfKey, o);
+                        daysToFloweringByCultivar.put(dtfKey, new int[]{0, 0});
+                    }
+                }
+            }
+            System.out.println("> Flowering: " + combinationToUnit.size()
+                    + " unique (cultivar × lat-band × year) combinations to simulate.");
+
+            // Submit one flowering run per combination
+            for (Map.Entry<String, Object[]> entry : combinationToUnit.entrySet())
             {
                 try
                 {
-                    Object[] o = (Object[])unitInfo[u];
-                    int pdMean = (int)o[5];
+                    String dtfKey  = entry.getKey();
+                    Object[] o     = entry.getValue();
 
-                    // Construct the cultivar option
-                    String cropCode = (String)o[6];
-                    String cultivarCode = (String)o[7];
-                    String cultivarName = (String)o[8];
-                    int[] cultivarInfo = (int[])o[9];
-                    Object[] cultivarOption = new Object[]{ countryCode, cropCode, cultivarCode, cultivarName, cultivarInfo[0], cultivarInfo[1], cultivarInfo[2] };
+                    // Parse year and latBand from key: cropCultivar(8)_latBand_year
+                    String[] kp  = dtfKey.split("_");
+                    int simYear  = Integer.parseInt(kp[kp.length - 1]);
+                    int latBand  = Integer.parseInt(kp[kp.length - 2]);
 
-                    // Weather name — key includes year since plantingDatesToSimulate is now year-keyed
-                    int cell5m = (Integer)o[1];
-                    String weatherFileName = String.valueOf(cell5m) + ".WTH";
-                    String weatherKey = weatherFileName.split("\\.")[0] + "_" + cropCode + "_" + firstPlantingYear;
+                    String cropCode     = (String) o[6];
+                    String cultivarCode = (String) o[7];
+                    String cultivarName = (String) o[8];
+                    int[]  cultivarInfo = (int[])  o[9];
+                    Object[] cultivarOption = new Object[]{ countryCode, cropCode, cultivarCode,
+                            cultivarName, cultivarInfo[0], cultivarInfo[1], cultivarInfo[2] };
 
-                    // To use below
-                    daysToFloweringByCultivar.put(cropCode + cultivarCode, new int[]{0, 0});
+                    int cell5m = (Integer) o[1];
+                    String weatherFileName = cell5m + ".WTH";
+                    String weatherKey = cell5m + "_" + cropCode + "_" + simYear;
 
-                    // Planting dates to use
+                    int pd = (int) o[5]; // median planting date as fallback
                     if (plantingDatesToSimulate.containsKey(weatherKey))
                     {
-                        int pd = (Integer) plantingDatesToSimulate.get(weatherKey);
-                        if (pd <= 0) pd = pdMean;
-                        int finalThreadID = threadID;
-                        int finalPd = pd;
-
-                        // Multithreading
-                        Future<Integer> future = executor.submit(new ThreadFloweringRuns(o, finalThreadID, weatherFileName, finalPd, cultivarOption, plantingDateOptionLabel, co2, firstPlantingYear));
-                        futures.add(future);
-                        threadID++;
-
-                        if (threadID==numberOfThreads) threadID = 0;
+                        int looked = (Integer) plantingDatesToSimulate.get(weatherKey);
+                        if (looked > 0) pd = looked;
                     }
 
+                    int co2 = co2History.containsKey(simYear)
+                            ? co2History.get(simYear)
+                            : co2History.firstEntry().getValue();
+
+                    Future<Integer> future = executor.submit(
+                            new ThreadFloweringRuns(o, threadID, weatherFileName, pd,
+                                    cultivarOption, plantingDateOptionLabel, co2, latBand, simYear));
+                    futures.add(future);
+                    threadID++;
+                    if (threadID == numberOfThreads) threadID = 0;
                 }
                 catch (Exception ex)
                 {
@@ -508,6 +524,19 @@ public class App
                 // Status
                 System.out.println("> Analyzing " + csvFileName + "...");
 
+                // Extract latBand from filename: find the part starting with "L" before the timestamp.
+                // Filename format: {cell5m}_PB_{cropCode}_{cultivarCode}_Y{year}_L{latBand}_{timestamp}.csv
+                int latBandFromFile = 0;
+                for (String fp : csvFileName.replace(".csv", "").split("_"))
+                {
+                    if (fp.startsWith("L") && Utility.isNumeric(fp.substring(1)))
+                    {
+                        latBandFromFile = Integer.parseInt(fp.substring(1));
+                        break;
+                    }
+                }
+                final int parsedLatBand = latBandFromFile;
+
                 // Reading in
                 try (var parser = CsvIO.openRfc4180(directoryFloweringDates + csvFileName))
                 {
@@ -515,33 +544,36 @@ public class App
                     {
                         try
                         {
-                            
                             // Parse the cultivar code from TNAM
                             String cropCode = record.get("CR");
                             String cultivarCode = record.get("TNAM").substring(0, 6);
-                            String cropCultivarCode = cropCode + cultivarCode;
 
-                            // Parse PDAT/ADAT/HDAT for computing flowering/harvest days
-                            int dtf, dth, pDDD = 0, aDDD = 0, hDDD = 0;
+                            // Parse PDAT/ADAT/HDAT for computing flowering/harvest days.
+                            // PDAT in summary.csv is YYYYDDD; extract year (chars 0-3) and DDD (chars 4-6).
+                            int dtf, dth, pDDD = 0, aDDD = 0, hDDD = 0, pdatYear = 0;
                             String pdat = record.get("PDAT");
                             String adat = record.get("ADAT");
                             String hdat = record.get("HDAT");
-                            if (pdat.length() > 4)
-                                pDDD = Integer.parseInt(pdat.substring(4));
-                            if (record.get("ADAT").length() > 4)
-                                aDDD = Integer.parseInt(adat.substring(4));
-                            if (record.get("HDAT").length() > 4)
-                                hDDD = Integer.parseInt(hdat.substring(4));
-
-                            if (pDDD > 0 && aDDD > 0 && hDDD > 0)
+                            if (pdat.length() >= 7)
                             {
-                                // Flowering date
+                                pdatYear = Integer.parseInt(pdat.substring(0, 4));
+                                pDDD = Integer.parseInt(pdat.substring(4));
+                            }
+                            if (adat.length() > 4) aDDD = Integer.parseInt(adat.substring(4));
+                            if (hdat.length() > 4) hDDD = Integer.parseInt(hdat.substring(4));
+
+                            // Full key: cropCultivar_latBand_year
+                            String dtfKey = cropCode + cultivarCode + "_" + parsedLatBand + "_" + pdatYear;
+
+                            if (pDDD > 0 && aDDD > 0 && hDDD > 0 && pdatYear > 0)
+                            {
+                                // Flowering days-after-planting
                                 if (aDDD > pDDD)
                                     dtf = aDDD - pDDD + 1;
                                 else
                                     dtf = aDDD + (365 - pDDD) + 1;
 
-                                // Harvest date
+                                // Harvest days-after-planting
                                 if (hDDD > pDDD)
                                     dth = hDDD - pDDD + 1;
                                 else
@@ -549,30 +581,8 @@ public class App
 
                                 if (dtf > 0 && dth > 0 && dtf < dth)
                                 {
-                                    if (dtfMap.containsKey(cropCultivarCode))
-                                    {
-                                        // DTF
-                                        ArrayList<Integer> dtfValues = dtfMap.get(cropCultivarCode);
-                                        dtfValues.add(dtf);
-                                        dtfMap.put(cropCultivarCode, dtfValues);
-
-                                        // DTH
-                                        ArrayList<Integer> dthValues = dthMap.get(cropCultivarCode);
-                                        dthValues.add(dth);
-                                        dthMap.put(cropCultivarCode, dthValues);
-                                    }
-                                    else
-                                    {
-                                        // DTF
-                                        ArrayList<Integer> dtfValues = new ArrayList<>();
-                                        dtfValues.add(dtf);
-                                        dtfMap.put(cropCultivarCode, dtfValues);
-
-                                        // DTH
-                                        ArrayList<Integer> dthValues = new ArrayList<>();
-                                        dthValues.add(dth);
-                                        dthMap.put(cropCultivarCode, dthValues);
-                                    }
+                                    dtfMap.computeIfAbsent(dtfKey, k -> new ArrayList<>()).add(dtf);
+                                    dthMap.computeIfAbsent(dtfKey, k -> new ArrayList<>()).add(dth);
                                 }
                             }
                         }
@@ -585,31 +595,26 @@ public class App
 
             } // For each CSV file
 
-            // List of unique cropCultivarCode
-            ArrayList<String> cropCultivarList = new ArrayList<>(dtfMap.keySet());
+            // Compute mean DTF and DTH for each full key, store in daysToFloweringByCultivar
             int temp;
-            for (String c : cropCultivarList)
+            for (String dtfKey : dtfMap.keySet())
             {
-                ArrayList<Integer> dtfValues = dtfMap.get(c);
-                ArrayList<Integer> dthValues = dthMap.get(c);
+                ArrayList<Integer> dtfValues = dtfMap.get(dtfKey);
+                ArrayList<Integer> dthValues = dthMap.get(dtfKey);
 
-                // Mean of DTF values
                 temp = 0;
-                for (Integer dtfValue : dtfValues) temp = temp + dtfValue;
+                for (int v : dtfValues) temp += v;
                 int dtfMean = temp / dtfValues.size();
 
-                // Mean of DTH values
                 temp = 0;
-                for (Integer dthValue : dthValues) temp = temp + dthValue;
+                for (int v : dthValues) temp += v;
                 int dthMean = temp / dthValues.size();
 
-                // Storing
-                daysToFloweringByCultivar.put(c, new int[]{dtfMean, dthMean});
+                daysToFloweringByCultivar.put(dtfKey, new int[]{dtfMean, dthMean});
             }
 
-            // Adding some default values to avoid errors
-            int dtfAvg = 60, dthAvg = 120;
-            daysToFloweringByCultivar.put("DEFAULT", new int[]{ dtfAvg, dthAvg });
+            // Global default fallback (60 DTF, 120 DTH) used when no key matches
+            daysToFloweringByCultivar.put("DEFAULT", new int[]{ 60, 120 });
 
             // Writing a CSV output file
             if (printDaysToFlowering)
@@ -682,17 +687,30 @@ public class App
                         int[] cultivarInfo = (int[])o[9];
                         Object[] cultivarOption = new Object[]{ countryCode, cropCode, cultivarCode, cultivarName, cultivarInfo[0], cultivarInfo[1], cultivarInfo[2] };
                         String cropCultivarCode = cultivarOption[1] + (String)cultivarOption[2];
-                        int daysToFlowering, daysToHarvest;
-                        try
+
+                        // Latitude band for phenology lookup
+                        double unitLat = (double) o[11];
+                        int latBand = (int)(Math.floor(unitLat / latBandSize) * latBandSize);
+
+                        // Fallback DTF/DTH: find any entry for this cultivar, or use DEFAULT
+                        int[] fallbackDtf = (int[]) daysToFloweringByCultivar.get("DEFAULT");
+                        for (Object k : daysToFloweringByCultivar.keySet())
                         {
-                            daysToFlowering = ((int[])daysToFloweringByCultivar.get(cropCultivarCode))[0];
-                            daysToHarvest = ((int[])daysToFloweringByCultivar.get(cropCultivarCode))[1];
+                            if (((String)k).startsWith(cropCultivarCode + "_")) {
+                                fallbackDtf = (int[]) daysToFloweringByCultivar.get(k);
+                                break;
+                            }
                         }
-                        catch(Exception e)
+                        int daysToFlowering = fallbackDtf[0];
+                        int daysToHarvest   = fallbackDtf[1];
+
+                        // Build year-specific DTF/DTH map for this unit
+                        TreeMap<Integer, int[]> yearToDtf = new TreeMap<>();
+                        for (int yr = firstPlantingYear; yr < firstPlantingYear + numberOfYears; yr++)
                         {
-                            daysToFlowering = ((int[])daysToFloweringByCultivar.get("DEFAULT"))[0];
-                            daysToHarvest = ((int[])daysToFloweringByCultivar.get("DEFAULT"))[1];
-                            System.out.println("> Default phenology values used for "+cropCultivarCode);
+                            String dtfKey = cropCultivarCode + "_" + latBand + "_" + yr;
+                            if (daysToFloweringByCultivar.containsKey(dtfKey))
+                                yearToDtf.put(yr, (int[]) daysToFloweringByCultivar.get(dtfKey));
                         }
 
                         // Weather file and per-year planting dates
@@ -720,7 +738,7 @@ public class App
                         Object[] weatherAndPlantingDate = { weatherFileName, yearToPlantingDate };
 
                         // Multiple threads
-                        Future<Integer> future = executor.submit(new ThreadSeasonalRuns(o, weatherAndPlantingDate, cultivarOption, daysToFlowering, daysToHarvest, progress, firstPlantingYear, numberOfYears, co2History));
+                        Future<Integer> future = executor.submit(new ThreadSeasonalRuns(o, weatherAndPlantingDate, cultivarOption, daysToFlowering, daysToHarvest, yearToDtf, progress, firstPlantingYear, numberOfYears, co2History));
                         futures.add(future);
 
                     }

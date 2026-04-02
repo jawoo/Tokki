@@ -31,6 +31,7 @@ scenarioSwitch:
 plantingDateOptions:
   useFixedPlantingDate: 0
   fixedPlantingDate: 135
+latBandSize: 10          # degrees latitude per band for phenology stratification
 useRecommendedNitrogenFertilizerRate: 1
 nitrogenFertilizerRates:
 # - 0

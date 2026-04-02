@@ -73,6 +73,7 @@ public final class ConfigLoader
         int fixedPlantingDate = plantingDateOptions.get("fixedPlantingDate");
         int firstPlantingYear = (int)config.get("firstPlantingYear");
         int numberOfYears = (int)config.get("numberOfYears");
+        int latBandSize = config.containsKey("latBandSize") ? (int) config.get("latBandSize") : 10;
 
         return new TokkiConfig(
                 tableNameUnitInformation,
@@ -89,7 +90,8 @@ public final class ConfigLoader
                 useFixedPlantingDate,
                 fixedPlantingDate,
                 firstPlantingYear,
-                numberOfYears
+                numberOfYears,
+                latBandSize
         );
     }
 }

@@ -15,7 +15,7 @@ public class SnxWriterFloweringRuns
             int pd,
             Object[] cultivarOption,
             int co2,
-            int firstPlantingYear
+            int simYear
             ) throws NumberFormatException, InterruptedException {
 
         // Unit information
@@ -26,8 +26,8 @@ public class SnxWriterFloweringRuns
         String cropCode = (String)cultivarOption[1];
         String cultivarCode = (String)cultivarOption[2];
 
-        // YY
-        String yy = String.valueOf(firstPlantingYear).substring(2);
+        // YY — two-digit year for this simulation year
+        String yy = String.valueOf(simYear).substring(2);
 
         // Boolean switches
         boolean isRice;

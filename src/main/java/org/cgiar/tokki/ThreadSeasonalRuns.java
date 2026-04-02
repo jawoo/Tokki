@@ -18,8 +18,9 @@ public class ThreadSeasonalRuns implements Callable<Integer>
     Object[] o;
     Object[] weatherAndPlantingDate;
     Object[] cultivarOption;
-    int daysToFlowering;
-    int daysToHarvest;
+    int daysToFlowering;     // cultivar-level fallback
+    int daysToHarvest;       // cultivar-level fallback
+    TreeMap<Integer, int[]> yearToDtf;  // year → {dtf, dth}; overrides fallback when present
     String progress;
     int firstPlantingYear;
     int numberOfYears;
@@ -27,7 +28,7 @@ public class ThreadSeasonalRuns implements Callable<Integer>
     DecimalFormat df000 = new DecimalFormat("000");
 
     ThreadSeasonalRuns(Object[] o, Object[] weatherAndPlantingDate, Object[] cultivarOption,
-                       int daysToFlowering, int daysToHarvest,
+                       int daysToFlowering, int daysToHarvest, TreeMap<Integer, int[]> yearToDtf,
                        String progress, int firstPlantingYear, int numberOfYears, TreeMap<Integer, Integer> co2History)
     {
         this.o = o;
@@ -35,6 +36,7 @@ public class ThreadSeasonalRuns implements Callable<Integer>
         this.cultivarOption = cultivarOption;
         this.daysToFlowering = daysToFlowering;
         this.daysToHarvest = daysToHarvest;
+        this.yearToDtf = yearToDtf;
         this.progress = progress;
         this.firstPlantingYear = firstPlantingYear;
         this.numberOfYears = numberOfYears;
@@ -349,10 +351,20 @@ public class ThreadSeasonalRuns implements Callable<Integer>
                     {
                         int simYear = yearEntry.getKey();
                         int pdate   = yearEntry.getValue();
+
+                        // Year-specific DTF/DTH — override cultivar-level fallback when available
+                        int dtfForYear = daysToFlowering;
+                        int dthForYear = daysToHarvest;
+                        if (yearToDtf != null && yearToDtf.containsKey(simYear))
+                        {
+                            dtfForYear = yearToDtf.get(simYear)[0];
+                            dthForYear = yearToDtf.get(simYear)[1];
+                        }
+
                         String runLabelYear = runLabel + "-Y" + simYear;
                         try
                         {
-                            SnxWriterSeasonalRuns.runningTreatmentPackages(o, waterManagement, nRate, manureRate, cultivarOption, daysToFlowering, daysToHarvest, pdensityOption, residueHarvestPct, co2, weatherFileName, pdate, label, simYear);
+                            SnxWriterSeasonalRuns.runningTreatmentPackages(o, waterManagement, nRate, manureRate, cultivarOption, dtfForYear, dthForYear, pdensityOption, residueHarvestPct, co2, weatherFileName, pdate, label, simYear);
                             System.out.println("> T" + dfTT.format(threadID) + ", " + progress + ", S" + (s+1) + "/" + ns + ", " + runLabelYear);
                             exitCode = ExeRunner.dscsm048_seasonal("N");
                             if (exitCode == 0)
