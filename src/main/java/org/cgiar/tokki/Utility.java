@@ -201,6 +201,21 @@ public class Utility
         return model + version;
     }    
 
+    // Planting date onset criteria per crop
+    // Returns: { tminThresholdC, onsetRainfallMm, onsetDays, drySpellMaxDays, windowHalfDays }
+    public static int[] getPlantingDateCriteria(String cropCode)
+    {
+        return switch (cropCode != null ? cropCode : "") {
+            case "MZ", "SB"      -> new int[] { 10, 25, 10, 7, 30 };
+            case "SG"            -> new int[] { 12, 20, 10, 7, 30 };
+            case "WH", "BA"      -> new int[] {  0, 20, 10, 10, 30 };
+            case "RI"            -> new int[] { 15, 30, 10, 5, 30 };
+            case "FB", "CH"      -> new int[] {  8, 20, 10, 7, 30 };
+            case "TF"            -> new int[] {  8, 20, 10, 7, 30 };
+            default              -> new int[] {  5, 20, 10, 7, 30 };
+        };
+    }
+
     // Cultivar-level information
     public static int[] getCultivarManagementInformation(String cropCode)
     {

@@ -23,17 +23,17 @@ public class SnxWriterSeasonalRuns
             String pdensityOption,
             int residueHarvestPct,
             int co2,
-            Object[] weatherAndPlantingDate,
+            String weatherFileName,
+            int pdate,
             String label,
-            int firstPlantingYear,
-            int numberOfYears
+            int simYear
             ) throws InterruptedException {
 
         // Thread ID?
         int threadID = Integer.parseInt(Thread.currentThread().getName());
 
-        // YY
-        String yy = String.valueOf(firstPlantingYear).substring(2);
+        // YY — two-digit year for this simulation year
+        String yy = String.valueOf(simYear).substring(2);
 
         // Unit information
         String soilProfileID = (String)o[2];
@@ -97,9 +97,6 @@ $BATCH(SEQUENCE)
 
 @FILEX                                                                                        TRTNO     RP     SQ     OP     CO
 """);
-
-        // Retrieval
-        int pdate = (Integer)weatherAndPlantingDate[1];
 
         snxSectionTreatments +=
                 dfTT.format(tn)+" 1 0 0 "+label+"                 1 "+dfTT.format(tn)+"  0  1 "+dfTT.format(tn)+"  "+mi+"  "+mf+"  "+mr+"  0  0  1  "+mh+"  1\n";
@@ -277,7 +274,7 @@ $BATCH(SEQUENCE)
         // Simulation controls
         String irrig = "D";  if (isRice)  irrig = "R";
         String harvs = "M";  if (isWheat) harvs = "R";
-        String nyers = dfTT.format(numberOfYears);
+        String nyers = "01";  // one season per DSSAT call; year loop is in ThreadSeasonalRuns
         String snxSectionSimulationControls = """
 
 *SIMULATION CONTROLS

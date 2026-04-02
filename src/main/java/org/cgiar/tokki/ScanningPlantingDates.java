@@ -4,113 +4,214 @@ package org.cgiar.tokki;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Scanner;
 import java.util.TreeMap;
 import java.util.concurrent.Callable;
 
 // ScanningPlantingDates class
-public class ScanningPlantingDates implements Callable<Object[]> 
+// For each simulation year, detects the agronomic onset of the rainy season within a
+// ±windowHalfDays window around the median planting date, using:
+//   1. A minimum TMIN gate (crop-specific)
+//   2. An onset trigger  : cumulative rainfall over the next onsetDays days >= onsetRainfallMm
+//   3. A false-start check: no dry spell longer than drySpellMaxDays in the following 30 days
+// Falls back to the maximum 5-day rainfall within the window when no onset passes all tests.
+public class ScanningPlantingDates implements Callable<Object[]>
 {
     int medianPlantingDate;
     String weatherFileName;
     String cropCode;
+    int firstYear;
+    int numberOfYears;
 
-    ScanningPlantingDates(int medianPlantingDate, String weatherFileName, String cropCode)
+    ScanningPlantingDates(int medianPlantingDate, String weatherFileName, String cropCode,
+                          int firstYear, int numberOfYears)
     {
         this.medianPlantingDate = medianPlantingDate;
-        this.weatherFileName = weatherFileName;
-        this.cropCode = cropCode;
+        this.weatherFileName    = weatherFileName;
+        this.cropCode           = cropCode;
+        this.firstYear          = firstYear;
+        this.numberOfYears      = numberOfYears;
     }
 
     @Override
     public Object[] call()
     {
+        // Crop-specific onset criteria
+        int[] criteria       = Utility.getPlantingDateCriteria(cropCode);
+        int tminThreshold    = criteria[0];   // °C
+        int onsetRainfallMm  = criteria[1];   // mm threshold over onsetDays
+        int onsetDays        = criteria[2];   // look-ahead window for onset trigger (days)
+        int drySpellMaxDays  = criteria[3];   // max consecutive dry days allowed in false-start check
+        int windowHalfDays   = criteria[4];   // ± days around median planting date
 
-        // To return
-        int selectedDate;
-
-        // Container
-        TreeMap<Integer, Integer> rainfallByDate = new TreeMap<>();
-        for (int i=1; i<=366; i++)
-            rainfallByDate.put(i, 0);
-
-        // Read in all rainfall values
+        // Parse entire weather file into TreeMap<YYYYDDD, [rain, tmin]>
+        // Key is the raw integer from column 1 (e.g. 2021135 for 2021 day 135).
+        // TreeMap ordering is correct because YYYYDDD integers are monotonically
+        // increasing across year boundaries (2021365 < 2022001).
+        TreeMap<Integer, double[]> weatherByDay = new TreeMap<>();
         try
         {
-            File wtgFile = new File(App.directoryWeather+weatherFileName);
+            File wtgFile = new File(App.directoryWeather + weatherFileName);
             try (Scanner wtg = new Scanner(wtgFile))
             {
                 while (wtg.hasNextLine())
                 {
-                    String line = wtg.nextLine();
-                    String[] values = line.split("\\s+");
-                    if (values.length==5 && Utility.isNumeric(values[0].substring(4)))
+                    String line   = wtg.nextLine().trim();
+                    String[] vals = line.split("\\s+");
+                    // Data rows: 5 columns, first column is exactly 7 numeric characters (YYYYDDD)
+                    if (vals.length == 5 && vals[0].length() == 7 && Utility.isNumeric(vals[0]))
                     {
-                        int ddd  = Integer.parseInt(values[0].substring(4));
-                        int newRain = (int)Double.parseDouble(values[4]);
-                        int previousRain = rainfallByDate.get(ddd);
-                        rainfallByDate.put(ddd, previousRain+newRain);
+                        try
+                        {
+                            int    yyyyddd = Integer.parseInt(vals[0]);
+                            double rain    = Double.parseDouble(vals[4]);  // RAIN column
+                            double tmin    = Double.parseDouble(vals[3]);  // TMIN column
+                            weatherByDay.put(yyyyddd, new double[]{ rain, tmin });
+                        }
+                        catch (NumberFormatException ignored) { }
                     }
                 }
             }
         }
-        catch (FileNotFoundException | NumberFormatException | StringIndexOutOfBoundsException ex)
+        catch (FileNotFoundException | StringIndexOutOfBoundsException ex)
         {
-            System.err.println("> Weather file scanning error for " + weatherFileName + " (" + ex + "). Returning the median planting date...");
+            System.err.println("> Weather file scanning error for " + weatherFileName
+                    + " (" + ex + "). Using median planting date for all years.");
         }
 
-        // Summing for 5-day window
-        TreeMap<Integer, Integer> sumOfRainFor5Days = new TreeMap<>();
-        for (int i=0; i<rainfallByDate.size(); i++)
+        // Flat sorted list of day keys — used for index-based look-ahead
+        List<Integer> allDays = new ArrayList<>(weatherByDay.keySet());
+
+        // For each simulation year, determine the optimal planting date
+        String keyPrefix = weatherFileName.split("\\.")[0] + "_" + cropCode;
+        TreeMap<Integer, Integer> yearToPlantingDate = new TreeMap<>();
+
+        for (int yr = firstYear; yr < firstYear + numberOfYears; yr++)
         {
-            int r = 0;
-            for (int j=1; j<=5; j++)
-            {
-                int d = i + j;
-                if (d>365) d = d - 365;
-                r += rainfallByDate.get(d);
-            }
-            sumOfRainFor5Days.put(i, r);
+            int ddd = findOnsetDate(yr, medianPlantingDate, windowHalfDays,
+                    tminThreshold, onsetRainfallMm, onsetDays, drySpellMaxDays,
+                    weatherByDay, allDays);
+            yearToPlantingDate.put(yr, ddd);
+            if (App.verbose)
+                System.out.println("> " + keyPrefix + "_" + yr + " → planting DDD " + ddd);
         }
 
-        // Selecting a good date around the median planting date
-        ArrayList<Integer> datesToCheck = new ArrayList<>();
-        int windowStart = medianPlantingDate - 30;
-        int windowEnd = medianPlantingDate + 30;
-        for (int i=windowStart; i<=windowEnd; i++)
+        return new Object[] { keyPrefix, yearToPlantingDate };
+    }
+
+    // -------------------------------------------------------------------------
+    // Core algorithm
+    // -------------------------------------------------------------------------
+
+    private int findOnsetDate(int year, int medianDDD, int windowHalfDays,
+                              int tminThreshold, int onsetRainfallMm, int onsetDays,
+                              int drySpellMaxDays,
+                              TreeMap<Integer, double[]> weatherByDay, List<Integer> allDays)
+    {
+        if (allDays.isEmpty()) return medianDDD;
+
+        // Compute window bounds as indices into allDays
+        int centerIdx = indexOfClosestKey(allDays, year * 1000 + medianDDD);
+        if (centerIdx < 0) return medianDDD;
+
+        int startIdx = Math.max(0,                centerIdx - windowHalfDays);
+        int endIdx   = Math.min(allDays.size()-1, centerIdx + windowHalfDays);
+
+        // Scan candidates earliest → latest within the window
+        for (int idx = startIdx; idx <= endIdx; idx++)
         {
-            if (i < 1)
+            int candidateKey = allDays.get(idx);
+            double[] day     = weatherByDay.get(candidateKey);
+
+            // 1. Temperature gate
+            if (day[1] < tminThreshold) continue;
+
+            // 2. Onset trigger: cumulative rainfall over next onsetDays days
+            double onsetSum = sumRainfall(idx, onsetDays, allDays, weatherByDay);
+            if (onsetSum < onsetRainfallMm) continue;
+
+            // 3. False-start check: no dry spell > drySpellMaxDays in following 30 days
+            if (hasFalseStart(idx + 1, 30, drySpellMaxDays, allDays, weatherByDay)) continue;
+
+            // Valid onset found — return the DDD part of YYYYDDD
+            return candidateKey % 1000;
+        }
+
+        // Fallback: pick the day with the highest 5-day cumulative rainfall
+        return fallbackMaxRainfall(startIdx, endIdx, allDays, weatherByDay);
+    }
+
+    // -------------------------------------------------------------------------
+    // Helpers
+    // -------------------------------------------------------------------------
+
+    /** Index of the entry whose key is closest to and >= targetKey, or -1 if none. */
+    private int indexOfClosestKey(List<Integer> allDays, int targetKey)
+    {
+        for (int i = 0; i < allDays.size(); i++)
+            if (allDays.get(i) >= targetKey) return i;
+        return -1;
+    }
+
+    /** Cumulative rainfall over `days` consecutive entries starting at index `startIdx`. */
+    private double sumRainfall(int startIdx, int days,
+                               List<Integer> allDays,
+                               TreeMap<Integer, double[]> weatherByDay)
+    {
+        double sum = 0;
+        int end = Math.min(startIdx + days, allDays.size());
+        for (int i = startIdx; i < end; i++)
+        {
+            double[] d = weatherByDay.get(allDays.get(i));
+            if (d != null) sum += d[0];
+        }
+        return sum;
+    }
+
+    /**
+     * Returns true if there is a dry spell longer than maxDrySpell consecutive days
+     * within the next lookAheadDays entries starting at index startIdx.
+     * A day is considered dry when daily rainfall < 1 mm.
+     */
+    private boolean hasFalseStart(int startIdx, int lookAheadDays, int maxDrySpell,
+                                  List<Integer> allDays,
+                                  TreeMap<Integer, double[]> weatherByDay)
+    {
+        int consecutiveDry = 0;
+        int end = Math.min(startIdx + lookAheadDays, allDays.size());
+        for (int i = startIdx; i < end; i++)
+        {
+            double[] d = weatherByDay.get(allDays.get(i));
+            if (d != null && d[0] < 1.0)
             {
-                int d = 365 + i;
-                datesToCheck.add(d);
-            }
-            else if (i > 365)
-            {
-                int d = i - 365;
-                datesToCheck.add(d);
+                consecutiveDry++;
+                if (consecutiveDry > maxDrySpell) return true;
             }
             else
             {
-                datesToCheck.add(i);
+                consecutiveDry = 0;
             }
         }
+        return false;
+    }
 
-        // Scanning
-        selectedDate = datesToCheck.get(0);
-        int rain5Days = sumOfRainFor5Days.get(selectedDate);
-        for (int i=1; i<datesToCheck.size(); i++)
+    /** Fallback: return the DDD with the highest 5-day cumulative rainfall in the window. */
+    private int fallbackMaxRainfall(int startIdx, int endIdx,
+                                    List<Integer> allDays,
+                                    TreeMap<Integer, double[]> weatherByDay)
+    {
+        int    bestKey  = allDays.get(startIdx);
+        double bestRain = -1;
+        for (int i = startIdx; i <= endIdx; i++)
         {
-            int nextDate = datesToCheck.get(i);
-            int nextRain5Days = sumOfRainFor5Days.get(nextDate);
-            if (nextRain5Days>rain5Days)
-                selectedDate = nextDate;
+            double rain5 = sumRainfall(i, 5, allDays, weatherByDay);
+            if (rain5 > bestRain)
+            {
+                bestRain = rain5;
+                bestKey  = allDays.get(i);
+            }
         }
-
-        // Return
-        String key = weatherFileName.split("\\.")[0] + "_" + cropCode;
-        if (App.verbose) System.out.println("> Planting date for this location: "+key+" on "+selectedDate);
-        return new Object[] { key, selectedDate };
-
-    }    
-
+        return bestKey % 1000;
+    }
 }

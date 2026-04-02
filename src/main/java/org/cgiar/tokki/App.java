@@ -358,19 +358,24 @@ public class App
                     String cropCode = (String) o[6];
                     System.out.println("> Planting date "+(i+1)+"/"+numberOfUnits+", CELL5M: "+cell5m+" for "+cropCode);
 
-                    // Scanning planting dates
-                    Future<Object[]> future = executor.submit(new ScanningPlantingDates(medianPlantingDate, weatherFileName, cropCode));
+                    // Scanning planting dates (per year)
+                    Future<Object[]> future = executor.submit(new ScanningPlantingDates(medianPlantingDate, weatherFileName, cropCode, firstPlantingYear, numberOfYears));
                     list.add(future);
                 }
 
-                // Retrieve
+                // Retrieve — unpack year-keyed map into plantingDatesToSimulate
+                // Key format: "CELL5M_CROPCODE_YEAR" (e.g. "2126127_MZ_2021")
                 for (Future<Object[]> future: list)
                 {
                     Object[] r = future.get();
-                    String weatherKey = (String) r[0];
-                    int plantingDate = (Integer) r[1];
-                    if (useFixedPlantingDate) plantingDate = fixedPlantingDate;
-                    plantingDatesToSimulate.put(weatherKey, plantingDate);
+                    String keyPrefix = (String) r[0];
+                    @SuppressWarnings("unchecked")
+                    TreeMap<Integer, Integer> yearToDate = (TreeMap<Integer, Integer>) r[1];
+                    for (Map.Entry<Integer, Integer> entry : yearToDate.entrySet())
+                    {
+                        int plantingDate = useFixedPlantingDate ? fixedPlantingDate : entry.getValue();
+                        plantingDatesToSimulate.put(keyPrefix + "_" + entry.getKey(), plantingDate);
+                    }
                 }
                 executor.shutdown();
 
@@ -428,10 +433,10 @@ public class App
                     int[] cultivarInfo = (int[])o[9];
                     Object[] cultivarOption = new Object[]{ countryCode, cropCode, cultivarCode, cultivarName, cultivarInfo[0], cultivarInfo[1], cultivarInfo[2] };
 
-                    // Weather name
+                    // Weather name — key includes year since plantingDatesToSimulate is now year-keyed
                     int cell5m = (Integer)o[1];
                     String weatherFileName = String.valueOf(cell5m) + ".WTH";
-                    String weatherKey = weatherFileName.split("\\.")[0] + "_" + cropCode;
+                    String weatherKey = weatherFileName.split("\\.")[0] + "_" + cropCode + "_" + firstPlantingYear;
 
                     // To use below
                     daysToFloweringByCultivar.put(cropCode + cultivarCode, new int[]{0, 0});
@@ -690,24 +695,29 @@ public class App
                             System.out.println("> Default phenology values used for "+cropCultivarCode);
                         }
 
-                        // Weather file and planting date
+                        // Weather file and per-year planting dates
                         String cell5m = String.valueOf((Integer)o[1]);
                         String weatherFileName = cell5m + ".WTH";
-                        String weatherKey = cell5m + "_" + cropCode;
-                        int p = fixedPlantingDate;
-                        if (!useFixedPlantingDate)
+                        String keyPrefix = cell5m + "_" + cropCode;
+                        TreeMap<Integer, Integer> yearToPlantingDate = new TreeMap<>();
+                        for (int yr = firstPlantingYear; yr < firstPlantingYear + numberOfYears; yr++)
                         {
-                            try
+                            int p = fixedPlantingDate;
+                            if (!useFixedPlantingDate)
                             {
-                                p = (int)(plantingDatesToSimulate.get(weatherKey));
+                                String weatherKey = keyPrefix + "_" + yr;
+                                try
+                                {
+                                    p = (int)(plantingDatesToSimulate.get(weatherKey));
+                                }
+                                catch (Exception e)
+                                {
+                                    System.out.println("> Default planting date used for " + cropCultivarCode + " year " + yr);
+                                }
                             }
-                            catch(Exception e)
-                            {
-                                p = fixedPlantingDate;
-                                System.out.println("> Default planting date used for "+cropCultivarCode);
-                            }
+                            yearToPlantingDate.put(yr, p);
                         }
-                        Object[] weatherAndPlantingDate = { weatherFileName, p };
+                        Object[] weatherAndPlantingDate = { weatherFileName, yearToPlantingDate };
 
                         // Multiple threads
                         Future<Integer> future = executor.submit(new ThreadSeasonalRuns(o, weatherAndPlantingDate, cultivarOption, daysToFlowering, daysToHarvest, progress, firstPlantingYear, numberOfYears, co2History));

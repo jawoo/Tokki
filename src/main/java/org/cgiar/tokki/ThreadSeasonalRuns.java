@@ -7,6 +7,7 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
+import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.Callable;
 
@@ -337,29 +338,38 @@ public class ThreadSeasonalRuns implements Callable<Integer>
                         pdensityOption = "DH";
                     }
 
-                    // Status
+                    // Status label (year added below)
                     runLabel = "W" + switchWaterManagement + "-F" + df000.format(nRate) + "-M" + switchManure + "-R" + switchResidue + "-" + pdateOption + "-" + pdensityOption + "-" + cropCode + cultivarCode + "-C" + df000.format(co2);
 
-                    // Run it
-                    try
+                    // Year loop — run one DSSAT season per simulation year
+                    // (weatherFileName already set at the top of call())
+                    @SuppressWarnings("unchecked")
+                    TreeMap<Integer, Integer> yearToPlantingDate = (TreeMap<Integer, Integer>) weatherAndPlantingDate[1];
+                    for (Map.Entry<Integer, Integer> yearEntry : yearToPlantingDate.entrySet())
                     {
-                        SnxWriterSeasonalRuns.runningTreatmentPackages(o, waterManagement, nRate, manureRate, cultivarOption, daysToFlowering, daysToHarvest, pdensityOption, residueHarvestPct, co2, weatherAndPlantingDate, label, firstPlantingYear, numberOfYears);
-                        System.out.println("> T" + dfTT.format(threadID) + ", " + progress + ", S" + (s+1) + "/" + ns + ", " + runLabel);
-                        exitCode = ExeRunner.dscsm048_seasonal("N");
-                        if (exitCode == 0)
+                        int simYear = yearEntry.getKey();
+                        int pdate   = yearEntry.getValue();
+                        String runLabelYear = runLabel + "-Y" + simYear;
+                        try
                         {
-                            File outputSource = new File(App.directoryThreads + "T" + threadID + App.d + "summary.csv");
-                            File outputDestination = new File(App.directoryOutput + "U" + unitId + "_C" + cell5m + "_S" + s + "_" + runLabel + ".csv");
-                            outputDestination.setReadable(true, false);
-                            outputDestination.setExecutable(true, false);
-                            outputDestination.setWritable(true, false);
-                            Utility.copyFileUsingStream(outputSource, outputDestination);
+                            SnxWriterSeasonalRuns.runningTreatmentPackages(o, waterManagement, nRate, manureRate, cultivarOption, daysToFlowering, daysToHarvest, pdensityOption, residueHarvestPct, co2, weatherFileName, pdate, label, simYear);
+                            System.out.println("> T" + dfTT.format(threadID) + ", " + progress + ", S" + (s+1) + "/" + ns + ", " + runLabelYear);
+                            exitCode = ExeRunner.dscsm048_seasonal("N");
+                            if (exitCode == 0)
+                            {
+                                File outputSource = new File(App.directoryThreads + "T" + threadID + App.d + "summary.csv");
+                                File outputDestination = new File(App.directoryOutput + "U" + unitId + "_C" + cell5m + "_Y" + simYear + "_S" + s + "_" + runLabelYear + ".csv");
+                                outputDestination.setReadable(true, false);
+                                outputDestination.setExecutable(true, false);
+                                outputDestination.setWritable(true, false);
+                                Utility.copyFileUsingStream(outputSource, outputDestination);
+                            }
                         }
-                    }
-                    catch (IOException | InterruptedException ex)
-                    {
-                        System.err.println("> Seasonal runs: Error at T" + threadID + " for S" + s + "_" + runLabel + " (" + ex + ")");
-                    }
+                        catch (IOException | InterruptedException ex)
+                        {
+                            System.err.println("> Seasonal runs: Error at T" + threadID + " for S" + s + "_" + runLabelYear + " (" + ex + ")");
+                        }
+                    } // year loop
 
                 } // for (Object i: inputCombinations)
 
