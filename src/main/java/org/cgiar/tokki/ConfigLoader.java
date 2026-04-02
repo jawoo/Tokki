@@ -49,7 +49,6 @@ public final class ConfigLoader
                 working + directories.get("threads") + separator,
                 working + directories.get("result") + separator,
                 working + directories.get("temp") + separator + directories.get("summary") + separator,
-                working + directories.get("temp") + separator + directories.get("planting") + separator,
                 working + directories.get("temp") + separator + directories.get("flowering") + separator,
                 working + directories.get("temp") + separator + directories.get("plantingDates") + separator,
                 working + directories.get("temp") + separator + directories.get("errors") + separator

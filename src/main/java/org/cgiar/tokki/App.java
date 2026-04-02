@@ -43,7 +43,6 @@ public class App
     static String d = File.separator;
     static String fileDaysToFlowering = "daystoflowering";
     static String directoryWeather;
-    static String directoryMultiplePlatingDates;
     static String directoryFloweringDates;
     static String directoryInputPlatingDates;
     static String directoryInput;
@@ -119,7 +118,6 @@ public class App
             directoryThreads = layout.threads();
             directoryFinal = layout.result();
             directoryOutput = layout.outputSummary();
-            directoryMultiplePlatingDates = layout.tempPlanting();
             directoryFloweringDates = layout.tempFlowering();
             directoryInputPlatingDates = layout.tempPlantingDates();
             directoryError = layout.tempErrors();
@@ -211,7 +209,6 @@ public class App
             {
                 FileUtils.cleanDirectory(new File(directoryOutput));
                 FileUtils.cleanDirectory(new File(directoryError));
-                FileUtils.cleanDirectory(new File(directoryMultiplePlatingDates));
                 FileUtils.cleanDirectory(new File(directoryFloweringDates));
                 FileUtils.cleanDirectory(new File(directoryInputPlatingDates));
                 FileUtils.cleanDirectory(new File(directoryFinal));

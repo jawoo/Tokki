@@ -12,7 +12,6 @@ public record DirectoryLayout(
         String threads,
         String result,
         String outputSummary,
-        String tempPlanting,
         String tempFlowering,
         String tempPlantingDates,
         String tempErrors
