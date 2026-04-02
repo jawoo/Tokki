@@ -39,7 +39,8 @@ public class ExeRunner
                 String line;
                 while ((line = r.readLine()) != null)
                 {
-                    System.out.println(line);
+                    if (App.verbose)
+                        System.out.println(line);
                 }
             }
 
@@ -104,7 +105,7 @@ public class ExeRunner
                 {
                     System.err.println("> Thread " + threadID + ": failed to copy error artifacts (" + ex + ")");
                 }
-                System.out.println("> Thread " + threadID + ": Error code " + exitCode);
+                System.err.println("> Thread " + threadID + ": Error code " + exitCode);
                 //System.exit(0);
             }
         }
@@ -141,7 +142,8 @@ public class ExeRunner
                 String line;
                 while ((line = r.readLine()) != null)
                 {
-                    System.out.println(line);
+                    if (App.verbose)
+                        System.out.println(line);
                 }
             }
 
@@ -210,7 +212,7 @@ public class ExeRunner
                     {
                         System.err.println("> Thread " + threadID + ": failed to copy error artifacts (" + ex + ")");
                     }
-                    System.out.println("> Thread " + threadID + ": Error code " + exitCode);
+                    System.err.println("> Thread " + threadID + ": Error code " + exitCode);
                     //System.exit(0);
 
                 }
@@ -218,7 +220,7 @@ public class ExeRunner
                 {
                     System.err.println("> Thread " + threadID + ": failed while collecting error artifacts (" + ex + ")");
                 }
-                System.out.println("> Thread " + threadID + ": Error code " + exitCode);
+                System.err.println("> Thread " + threadID + ": Error code " + exitCode);
             }
         }
         catch (IOException | InterruptedException e)

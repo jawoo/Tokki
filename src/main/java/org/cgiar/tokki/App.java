@@ -471,8 +471,13 @@ public class App
                     }
                 }
             }
-            System.out.println("> Flowering: " + combinationToUnit.size()
+            long floweringTotal = combinationToUnit.size();
+            System.out.println("> Flowering: " + floweringTotal
                     + " unique (cultivar × lat-band × year) combinations to simulate.");
+
+            ConsoleProgress floweringProgress = floweringTotal > 0
+                    ? new ConsoleProgress("Flowering DSSAT", floweringTotal)
+                    : null;
 
             // Submit one flowering run per combination
             for (Map.Entry<String, Object[]> entry : combinationToUnit.entrySet())
@@ -511,7 +516,7 @@ public class App
 
                     Future<Integer> future = executor.submit(
                             new ThreadFloweringRuns(o, threadID, weatherFileName, pd,
-                                    cultivarOption, plantingDateOptionLabel, co2, latBand, simYear));
+                                    cultivarOption, plantingDateOptionLabel, co2, latBand, simYear, floweringProgress));
                     futures.add(future);
                     threadID++;
                     if (threadID == numberOfThreads) threadID = 0;
@@ -535,6 +540,9 @@ public class App
                     e.printStackTrace();
                 }
             }
+
+            if (floweringProgress != null)
+                floweringProgress.finish();
 
             // Shutdown the executor
             executor.shutdown();
@@ -693,6 +701,82 @@ public class App
         return daysToFloweringByCultivar;
     }
 
+    private record SeasonalUnitWork(
+            Object[] o,
+            Object[] weatherAndPlantingDate,
+            Object[] cultivarOption,
+            int daysToFlowering,
+            int daysToHarvest,
+            TreeMap<Integer, int[]> yearToDtf)
+    {
+    }
+
+    private static SeasonalUnitWork prepareSeasonalUnitWork(
+            int i,
+            Object[] unitInfo,
+            TreeMap<Object, Object> plantingDatesToSimulate,
+            TreeMap<Object, Object> daysToFloweringByCultivar,
+            int firstPlantingYear,
+            int numberOfYears,
+            boolean logDefaultPlantingDate)
+    {
+        Object[] o = (Object[]) unitInfo[i];
+        String cropCode = (String) o[6];
+        String cultivarCode = (String) o[7];
+        String cultivarName = (String) o[8];
+        int[] cultivarInfo = (int[]) o[9];
+        Object[] cultivarOption = new Object[]{ countryCode, cropCode, cultivarCode, cultivarName, cultivarInfo[0], cultivarInfo[1], cultivarInfo[2] };
+        String cropCultivarCode = cultivarOption[1] + (String) cultivarOption[2];
+
+        double unitLat = (double) o[11];
+        int latBand = (int) (Math.floor(unitLat / latBandSize) * latBandSize);
+
+        int[] fallbackDtf = (int[]) daysToFloweringByCultivar.get("DEFAULT");
+        for (Object k : daysToFloweringByCultivar.keySet())
+        {
+            if (((String) k).startsWith(cropCultivarCode + "_"))
+            {
+                fallbackDtf = (int[]) daysToFloweringByCultivar.get(k);
+                break;
+            }
+        }
+        int daysToFlowering = fallbackDtf[0];
+        int daysToHarvest = fallbackDtf[1];
+
+        TreeMap<Integer, int[]> yearToDtf = new TreeMap<>();
+        for (int yr = firstPlantingYear; yr < firstPlantingYear + numberOfYears; yr++)
+        {
+            String dtfKey = cropCultivarCode + "_" + latBand + "_" + yr;
+            if (daysToFloweringByCultivar.containsKey(dtfKey))
+                yearToDtf.put(yr, (int[]) daysToFloweringByCultivar.get(dtfKey));
+        }
+
+        String cell5m = String.valueOf((Integer) o[1]);
+        String weatherFileName = cell5m + ".WTH";
+        String keyPrefix = cell5m + "_" + cropCode;
+        TreeMap<Integer, Integer> yearToPlantingDate = new TreeMap<>();
+        for (int yr = firstPlantingYear; yr < firstPlantingYear + numberOfYears; yr++)
+        {
+            int p = fixedPlantingDate;
+            if (!useFixedPlantingDate)
+            {
+                String weatherKey = keyPrefix + "_" + yr;
+                try
+                {
+                    p = (int) (plantingDatesToSimulate.get(weatherKey));
+                }
+                catch (Exception e)
+                {
+                    if (logDefaultPlantingDate)
+                        System.out.println("> Default planting date used for " + cropCultivarCode + " year " + yr);
+                }
+            }
+            yearToPlantingDate.put(yr, p);
+        }
+        Object[] weatherAndPlantingDate = { weatherFileName, yearToPlantingDate };
+        return new SeasonalUnitWork(o, weatherAndPlantingDate, cultivarOption, daysToFlowering, daysToHarvest, yearToDtf);
+    }
+
     // Run seasonal simulations
     public static void runSeasonalSimulations(Object[] unitInfo, 
                                               TreeMap<Object, Object> plantingDatesToSimulate,
@@ -702,106 +786,60 @@ public class App
     {
         int numberOfUnits = unitInfo.length;
 
+        long totalDssatRuns = 0;
+        if (step4)
+        {
+            for (int i = 0; i < numberOfUnits; i++)
+            {
+                SeasonalUnitWork w = prepareSeasonalUnitWork(i, unitInfo, plantingDatesToSimulate, daysToFloweringByCultivar, firstPlantingYear, numberOfYears, false);
+                totalDssatRuns += ThreadSeasonalRuns.countDssatInvocations(w.weatherAndPlantingDate(), w.cultivarOption(), co2History);
+            }
+        }
+
+        ConsoleProgress seasonalProgress = (step4 && totalDssatRuns > 0)
+                ? new ConsoleProgress("Seasonal DSSAT", totalDssatRuns)
+                : null;
+
         // Multithreading
         ThreadFactoryBuilder threadFactoryBuilder = new ThreadFactoryBuilder().setNameFormat("%d");
         ExecutorService executor = Executors.newFixedThreadPool(numberOfThreads, threadFactoryBuilder.build());
         List<Future<Integer>> futures = new ArrayList<>();
 
-        // Looping through units
-        for (int i = 0; i < numberOfUnits; i = i + 1)
+        for (int i = 0; i < numberOfUnits; i++)
         {
-
-            // Status
-            String progress = "R" + (i+1) + "/" + numberOfUnits;
-
-            // Subset
             if (step4)
             {
                 try
                 {
-                    if (i < numberOfUnits)
-                    {
-
-                        // Unit Information
-                        Object[] o = (Object[]) unitInfo[i];
-
-                        // Construct the cultivar option
-                        String cropCode = (String)o[6];
-                        String cultivarCode = (String)o[7];
-                        String cultivarName = (String)o[8];
-                        int[] cultivarInfo = (int[])o[9];
-                        Object[] cultivarOption = new Object[]{ countryCode, cropCode, cultivarCode, cultivarName, cultivarInfo[0], cultivarInfo[1], cultivarInfo[2] };
-                        String cropCultivarCode = cultivarOption[1] + (String)cultivarOption[2];
-
-                        // Latitude band for phenology lookup
-                        double unitLat = (double) o[11];
-                        int latBand = (int)(Math.floor(unitLat / latBandSize) * latBandSize);
-
-                        // Fallback DTF/DTH: find any entry for this cultivar, or use DEFAULT
-                        int[] fallbackDtf = (int[]) daysToFloweringByCultivar.get("DEFAULT");
-                        for (Object k : daysToFloweringByCultivar.keySet())
-                        {
-                            if (((String)k).startsWith(cropCultivarCode + "_")) {
-                                fallbackDtf = (int[]) daysToFloweringByCultivar.get(k);
-                                break;
-                            }
-                        }
-                        int daysToFlowering = fallbackDtf[0];
-                        int daysToHarvest   = fallbackDtf[1];
-
-                        // Build year-specific DTF/DTH map for this unit
-                        TreeMap<Integer, int[]> yearToDtf = new TreeMap<>();
-                        for (int yr = firstPlantingYear; yr < firstPlantingYear + numberOfYears; yr++)
-                        {
-                            String dtfKey = cropCultivarCode + "_" + latBand + "_" + yr;
-                            if (daysToFloweringByCultivar.containsKey(dtfKey))
-                                yearToDtf.put(yr, (int[]) daysToFloweringByCultivar.get(dtfKey));
-                        }
-
-                        // Weather file and per-year planting dates
-                        String cell5m = String.valueOf((Integer)o[1]);
-                        String weatherFileName = cell5m + ".WTH";
-                        String keyPrefix = cell5m + "_" + cropCode;
-                        TreeMap<Integer, Integer> yearToPlantingDate = new TreeMap<>();
-                        for (int yr = firstPlantingYear; yr < firstPlantingYear + numberOfYears; yr++)
-                        {
-                            int p = fixedPlantingDate;
-                            if (!useFixedPlantingDate)
-                            {
-                                String weatherKey = keyPrefix + "_" + yr;
-                                try
-                                {
-                                    p = (int)(plantingDatesToSimulate.get(weatherKey));
-                                }
-                                catch (Exception e)
-                                {
-                                    System.out.println("> Default planting date used for " + cropCultivarCode + " year " + yr);
-                                }
-                            }
-                            yearToPlantingDate.put(yr, p);
-                        }
-                        Object[] weatherAndPlantingDate = { weatherFileName, yearToPlantingDate };
-
-                        // Multiple threads
-                        Future<Integer> future = executor.submit(new ThreadSeasonalRuns(o, weatherAndPlantingDate, cultivarOption, daysToFlowering, daysToHarvest, yearToDtf, progress, firstPlantingYear, numberOfYears, co2History));
-                        futures.add(future);
-
-                    }
+                    SeasonalUnitWork w = prepareSeasonalUnitWork(i, unitInfo, plantingDatesToSimulate, daysToFloweringByCultivar, firstPlantingYear, numberOfYears, true);
+                    Future<Integer> future = executor.submit(new ThreadSeasonalRuns(
+                            w.o(),
+                            w.weatherAndPlantingDate(),
+                            w.cultivarOption(),
+                            w.daysToFlowering(),
+                            w.daysToHarvest(),
+                            w.yearToDtf(),
+                            firstPlantingYear,
+                            numberOfYears,
+                            co2History,
+                            seasonalProgress));
+                    futures.add(future);
                 }
                 catch (Exception ex)
                 {
-                    System.err.println("> Seasonal runs: failed to submit task for " + progress + " (" + ex + ")");
+                    System.err.println("> Seasonal runs: failed to submit task for R" + (i + 1) + "/" + numberOfUnits + " (" + ex + ")");
                 }
-
             }
-
-        } // Looping through units
+        }
 
         // Retrieve
         for (Future<Integer> future: futures)
         {
             future.get();
         }
+
+        if (seasonalProgress != null)
+            seasonalProgress.finish();
 
         // Shutdown the executor
         executor.shutdown();

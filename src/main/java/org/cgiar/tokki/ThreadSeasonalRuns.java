@@ -21,15 +21,17 @@ public class ThreadSeasonalRuns implements Callable<Integer>
     int daysToFlowering;     // cultivar-level fallback
     int daysToHarvest;       // cultivar-level fallback
     TreeMap<Integer, int[]> yearToDtf;  // year → {dtf, dth}; overrides fallback when present
-    String progress;
     int firstPlantingYear;
     int numberOfYears;
     TreeMap<Integer, Integer> co2History;
     DecimalFormat df000 = new DecimalFormat("000");
+    /** Shared across worker threads; null when no seasonal DSSAT runs are scheduled. */
+    final ConsoleProgress dssatProgress;
 
     ThreadSeasonalRuns(Object[] o, Object[] weatherAndPlantingDate, Object[] cultivarOption,
                        int daysToFlowering, int daysToHarvest, TreeMap<Integer, int[]> yearToDtf,
-                       String progress, int firstPlantingYear, int numberOfYears, TreeMap<Integer, Integer> co2History)
+                       int firstPlantingYear, int numberOfYears, TreeMap<Integer, Integer> co2History,
+                       ConsoleProgress dssatProgress)
     {
         this.o = o;
         this.weatherAndPlantingDate = weatherAndPlantingDate;
@@ -37,10 +39,158 @@ public class ThreadSeasonalRuns implements Callable<Integer>
         this.daysToFlowering = daysToFlowering;
         this.daysToHarvest = daysToHarvest;
         this.yearToDtf = yearToDtf;
-        this.progress = progress;
         this.firstPlantingYear = firstPlantingYear;
         this.numberOfYears = numberOfYears;
         this.co2History = co2History;
+        this.dssatProgress = dssatProgress;
+    }
+
+    /**
+     * Number of DSSAT seasonal executions for one unit (matches nested loops in {@link #call}).
+     */
+    static long countDssatInvocations(Object[] weatherAndPlantingDate, Object[] cultivarOption,
+                                      TreeMap<Integer, Integer> co2History)
+    {
+        ArrayList<Object> scenarios = buildScenarioList();
+        @SuppressWarnings("unchecked")
+        TreeMap<Integer, Integer> yearToPlantingDate = (TreeMap<Integer, Integer>) weatherAndPlantingDate[1];
+        int numYears = yearToPlantingDate.size();
+        int recommendedNitrogenRate = (int) cultivarOption[6];
+        int actualNitrogenRate = recommendedNitrogenRate / 2;
+        int[] nitrogenFertilizerRates = new int[]{ actualNitrogenRate, recommendedNitrogenRate };
+        long count = 0;
+        int ns = scenarios.size();
+        for (int s = 0; s < ns; s++)
+        {
+            int[] scn = (int[]) scenarios.get(s);
+            int switchFertilizer = scn[1];
+            int switchCO2Fertilization = scn[6];
+
+            ArrayList<Integer> nRates = new ArrayList<>();
+            if (App.useRecommendedNitrogenFertilizerRate)
+                nRates.add(nitrogenFertilizerRates[switchFertilizer]);
+            else
+                for (Object n : App.nitrogenFertilizerRates)
+                    nRates.add((Integer) n);
+
+            ArrayList<Integer> co2s = new ArrayList<>();
+            if (switchCO2Fertilization == 1)
+                for (Object c : App.atmosphericCO2Values)
+                    co2s.add((Integer) c);
+            else
+            {
+                int y = App.firstPlantingYear;
+                co2s.add(co2History.get(y));
+            }
+
+            count += (long) nRates.size() * co2s.size() * numYears;
+        }
+        return count;
+    }
+
+    static ArrayList<Object> buildScenarioList()
+    {
+        ArrayList<Object> scenarios = new ArrayList<>();
+        if (App.scenarioCombinations)
+        {
+            int wMax = 2, fMax = 2, mMax = 2, rMax = 2, pMax = 2, dMax = 2;
+            if (!App.switchScenarios[0]) wMax = 1;
+            if (!App.switchScenarios[1]) fMax = 1;
+            if (!App.switchScenarios[2]) mMax = 1;
+            if (!App.switchScenarios[3]) rMax = 1;
+            if (!App.switchScenarios[4]) pMax = 1;
+            if (!App.switchScenarios[5]) dMax = 1;
+
+            for (int w = 0; w < wMax; w++)
+                for (int f = 0; f < fMax; f++)
+                    for (int m = 0; m < mMax; m++)
+                        for (int r = 0; r < rMax; r++)
+                            for (int p = 0; p < pMax; p++)
+                                for (int d = 0; d < dMax; d++)
+                                {
+                                    int[] scn;
+                                    if (App.switchScenarios[6])
+                                        scn = new int[]{ w, f, m, r, p, d, 1 };
+                                    else
+                                        scn = new int[]{ w, f, m, r, p, d, 0 };
+                                    scenarios.add(scn);
+                                }
+        }
+        else
+        {
+            for (int s = 0; s < App.switchScenarios.length; s++)
+            {
+                int switchWaterManagement = 0;
+                int switchFertilizer = 0;
+                int switchManure = 0;
+                int switchResidue = 0;
+                int switchPlantingWindow = 0;
+                int switchPlantingDensity = 0;
+                int switchCO2Fertilization = 0;
+
+                switch (s)
+                {
+                    case 0 -> {
+                        if (App.switchScenarios[s])
+                        {
+                            switchWaterManagement = 1;
+                            int[] scn = { switchWaterManagement, switchFertilizer, switchManure, switchResidue, switchPlantingWindow, switchPlantingDensity, switchCO2Fertilization };
+                            scenarios.add(scn);
+                        }
+                    }
+                    case 1 -> {
+                        if (App.switchScenarios[s])
+                        {
+                            switchFertilizer = 1;
+                            int[] scn = { switchWaterManagement, switchFertilizer, switchManure, switchResidue, switchPlantingWindow, switchPlantingDensity, switchCO2Fertilization };
+                            scenarios.add(scn);
+                        }
+                    }
+                    case 2 -> {
+                        if (App.switchScenarios[s])
+                        {
+                            switchManure = 1;
+                            int[] scn = { switchWaterManagement, switchFertilizer, switchManure, switchResidue, switchPlantingWindow, switchPlantingDensity, switchCO2Fertilization };
+                            scenarios.add(scn);
+                        }
+                    }
+                    case 3 -> {
+                        if (App.switchScenarios[s])
+                        {
+                            switchResidue = 1;
+                            int[] scn = { switchWaterManagement, switchFertilizer, switchManure, switchResidue, switchPlantingWindow, switchPlantingDensity, switchCO2Fertilization };
+                            scenarios.add(scn);
+                        }
+                    }
+                    case 4 -> {
+                        if (App.switchScenarios[s])
+                        {
+                            switchPlantingWindow = 1;
+                            int[] scn = { switchWaterManagement, switchFertilizer, switchManure, switchResidue, switchPlantingWindow, switchPlantingDensity, switchCO2Fertilization };
+                            scenarios.add(scn);
+                        }
+                    }
+                    case 5 -> {
+                        if (App.switchScenarios[s])
+                        {
+                            switchPlantingDensity = 1;
+                            int[] scn = { switchWaterManagement, switchFertilizer, switchManure, switchResidue, switchPlantingWindow, switchPlantingDensity, switchCO2Fertilization };
+                            scenarios.add(scn);
+                        }
+                    }
+                    case 6 -> {
+                        if (App.switchScenarios[s])
+                        {
+                            switchCO2Fertilization = 1;
+                            int[] scn = { switchWaterManagement, switchFertilizer, switchManure, switchResidue, switchPlantingWindow, switchPlantingDensity, switchCO2Fertilization };
+                            scenarios.add(scn);
+                        }
+                    }
+                    default -> { }
+                }
+            }
+        }
+        return scenarios;
     }
 
     @Override
@@ -53,7 +203,6 @@ public class ThreadSeasonalRuns implements Callable<Integer>
         String soilProfileID = (String)o[2];
         String soilProfile = (String)o[3];
         int soilRootingDepth = (Integer)o[4];
-        DecimalFormat dfTT = new DecimalFormat("00");
 
         // Thread ID?
         int threadID = Integer.parseInt(Thread.currentThread().getName());
@@ -113,130 +262,7 @@ public class ThreadSeasonalRuns implements Callable<Integer>
             // Residue harvest rate
             int[] residueHarvestPcts = new int[]{ 100, 0 };
 
-            // Combinations?
-            ArrayList<Object> scenarios = new ArrayList<>();
-            if (App.scenarioCombinations)
-            {
-
-                // All combinations
-                int wMax = 2, fMax = 2, mMax = 2, rMax = 2, pMax = 2, dMax = 2;
-
-                // Or not
-                if (!App.switchScenarios[0]) wMax = 1;
-                if (!App.switchScenarios[1]) fMax = 1;
-                if (!App.switchScenarios[2]) mMax = 1;
-                if (!App.switchScenarios[3]) rMax = 1;
-                if (!App.switchScenarios[4]) pMax = 1;
-                if (!App.switchScenarios[5]) dMax = 1;
-
-                // Looping
-                for (int w=0; w<wMax; w++)
-                    for (int f=0; f<fMax; f++)
-                        for (int m=0; m<mMax; m++)
-                            for (int r=0; r<rMax; r++)
-                                for (int p=0; p<pMax; p++)
-                                    for (int d=0; d<dMax; d++)
-                                    {
-
-                                        // For CO2 fertilization, if the switch is on, no need to simulate the baseline value.
-                                        int[] scn;
-                                        if (App.switchScenarios[6])
-                                            scn = new int[]{ w, f, m, r, p, d, 1 };
-                                        else
-                                            scn = new int[]{ w, f, m, r, p, d, 0 };
-                                        scenarios.add(scn);
-
-                                    }
-
-
-            }
-            else
-            {
-
-                // One scenario for each choice
-                /*
-                0: Water Management
-                1: Fertilizer
-                2: Manure
-                3: Residue
-                4: Planting Window
-                5: Planting Density
-                6: CO2 Fertilization
-                */
-                for (int s=0; s<App.switchScenarios.length; s++)
-                {
-                    int switchWaterManagement = 0;
-                    int switchFertilizer = 0;
-                    int switchManure  = 0;
-                    int switchResidue = 0;
-                    int switchPlantingWindow = 0;
-                    int switchPlantingDensity = 0;
-                    int switchCO2Fertilization = 0;
-
-                    switch (s)
-                    {
-                        case 0 -> {
-                            if (App.switchScenarios[s])
-                            {
-                                switchWaterManagement = 1;
-                                int[] scn = { switchWaterManagement, switchFertilizer, switchManure, switchResidue, switchPlantingWindow, switchPlantingDensity, switchCO2Fertilization };
-                                scenarios.add(scn);
-                            }
-                        }
-                        case 1 -> {
-                            if (App.switchScenarios[s])
-                            {
-                                switchFertilizer = 1;
-                                int[] scn = { switchWaterManagement, switchFertilizer, switchManure, switchResidue, switchPlantingWindow, switchPlantingDensity, switchCO2Fertilization };
-                                scenarios.add(scn);
-                            }
-                        }
-                        case 2 -> {
-                            if (App.switchScenarios[s])
-                            {
-                                switchManure = 1;
-                                int[] scn = { switchWaterManagement, switchFertilizer, switchManure, switchResidue, switchPlantingWindow, switchPlantingDensity, switchCO2Fertilization };
-                                scenarios.add(scn);
-                            }
-                        }
-                        case 3 -> {
-                            if (App.switchScenarios[s])
-                            {
-                                switchResidue = 1;
-                                int[] scn = { switchWaterManagement, switchFertilizer, switchManure, switchResidue, switchPlantingWindow, switchPlantingDensity, switchCO2Fertilization };
-                                scenarios.add(scn);
-                            }
-                        }
-                        case 4 -> {
-                            if (App.switchScenarios[s])
-                            {
-                                switchPlantingWindow = 1;
-                                int[] scn = { switchWaterManagement, switchFertilizer, switchManure, switchResidue, switchPlantingWindow, switchPlantingDensity, switchCO2Fertilization };
-                                scenarios.add(scn);
-                            }
-                        }
-                        case 5 -> {
-                            if (App.switchScenarios[s])
-                            {
-                                switchPlantingDensity = 1;
-                                int[] scn = { switchWaterManagement, switchFertilizer, switchManure, switchResidue, switchPlantingWindow, switchPlantingDensity, switchCO2Fertilization };
-                                scenarios.add(scn);
-                            }
-                        }
-                        case 6 -> {
-                            if (App.switchScenarios[s])
-                            {
-                                switchCO2Fertilization = 1;
-                                int[] scn = { switchWaterManagement, switchFertilizer, switchManure, switchResidue, switchPlantingWindow, switchPlantingDensity, switchCO2Fertilization };
-                                scenarios.add(scn);
-                            }
-                        }
-                        default -> { }
-                    }
-
-                }
-
-            }
+            ArrayList<Object> scenarios = buildScenarioList();
 
             // Scenario
             int ns = scenarios.size();
@@ -365,8 +391,9 @@ public class ThreadSeasonalRuns implements Callable<Integer>
                         try
                         {
                             SnxWriterSeasonalRuns.runningTreatmentPackages(o, waterManagement, nRate, manureRate, cultivarOption, dtfForYear, dthForYear, pdensityOption, residueHarvestPct, co2, weatherFileName, pdate, label, simYear);
-                            System.out.println("> T" + dfTT.format(threadID) + ", " + progress + ", S" + (s+1) + "/" + ns + ", " + runLabelYear);
                             exitCode = ExeRunner.dscsm048_seasonal("N");
+                            if (dssatProgress != null)
+                                dssatProgress.step();
                             if (exitCode == 0)
                             {
                                 File outputSource = new File(App.directoryThreads + "T" + threadID + App.d + "summary.csv");

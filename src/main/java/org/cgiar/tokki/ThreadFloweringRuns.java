@@ -19,8 +19,10 @@ public class ThreadFloweringRuns implements Callable<Integer>
     int co2;
     int latBand;
     int simYear;
+    final ConsoleProgress floweringProgress;
 
-    ThreadFloweringRuns(Object[] o, int threadID, String weatherFileName, int pd, Object[] cultivarOption, String pdateOption, int co2, int latBand, int simYear)
+    ThreadFloweringRuns(Object[] o, int threadID, String weatherFileName, int pd, Object[] cultivarOption, String pdateOption, int co2, int latBand, int simYear,
+                        ConsoleProgress floweringProgress)
     {
         this.o = o;
         this.threadID = threadID;
@@ -31,6 +33,7 @@ public class ThreadFloweringRuns implements Callable<Integer>
         this.co2 = co2;
         this.latBand = latBand;
         this.simYear = simYear;
+        this.floweringProgress = floweringProgress;
     }
 
     @Override
@@ -39,9 +42,6 @@ public class ThreadFloweringRuns implements Callable<Integer>
 
         // To return
         int exitCode = 0;
-
-        // Status
-        System.out.println("> Flowering at T"+threadID+", "+weatherFileName+", "+pdateOption+", "+cultivarOption[1]+", "+cultivarOption[3]);
 
         // Modeling unit information
         String soilProfileID = (String)o[2];        // SoilProfileID
@@ -130,6 +130,9 @@ public class ThreadFloweringRuns implements Callable<Integer>
             }
 
         }
+
+        if (floweringProgress != null)
+            floweringProgress.step();
 
         // Return
         return exitCode;
