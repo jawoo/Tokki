@@ -30,8 +30,10 @@ public final class ConfigLoader
         int limitForDebugging = (int) config.get("limitForDebugging");
         boolean scenarioCombinations = (int) config.get("scenarioCombinations") > 0;
 
-        boolean useRecommendedNitrogenFertilizerRate =
-                (int) config.get("useRecommendedNitrogenFertilizerRate") > 0;
+        boolean useRecommendedNitrogenFertilizerRateOverride =
+                (int) config.get("useRecommendedNitrogenFertilizerRateOverride") > 0;
+        boolean useRecordedWaterSupplyOverride =
+                (int) config.get("useRecordedWaterSupplyOverride") > 0;
 
         List<Integer> nitrogenFertilizerRatesList = (List<Integer>) config.get("nitrogenFertilizerRates");
         Object[] nitrogenFertilizerRates = nitrogenFertilizerRatesList.toArray();
@@ -77,7 +79,8 @@ public final class ConfigLoader
                 numberOfThreads,
                 limitForDebugging,
                 scenarioCombinations,
-                useRecommendedNitrogenFertilizerRate,
+                useRecommendedNitrogenFertilizerRateOverride,
+                useRecordedWaterSupplyOverride,
                 nitrogenFertilizerRates,
                 atmosphericCO2Values,
                 layout,

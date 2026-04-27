@@ -1,7 +1,7 @@
 tableNameUnitInformation: unit-information_usa-mzsb-47707
 countryCode: USA
-numberOfThreads: 10    # Keep the maximum number of threads per box at 48
-limitForDebugging: 100
+numberOfThreads: 48    # Keep the maximum number of threads per box at 48
+limitForDebugging: 0
 firstPlantingYear: 2021
 numberOfYears: 5
 directory:
@@ -18,7 +18,7 @@ directory:
   errors: error
 scenarioCombinations: 0
 scenarioSwitch:
-  waterManagement: 0
+  waterManagement: 1
   fertilizer: 1
   manure: 0
   residue: 0
@@ -29,7 +29,8 @@ plantingDateOptions:
   useFixedPlantingDate: 0
   fixedPlantingDate: 135
 latBandSize: 1          # degrees latitude per band for phenology stratification
-useRecommendedNitrogenFertilizerRate: 1
+useRecommendedNitrogenFertilizerRateOverride: 1
+useRecordedWaterSupplyOverride: 1
 nitrogenFertilizerRates:
 # - 0
  - 30

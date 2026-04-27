@@ -36,10 +36,10 @@ public class SnxWriterSeasonalRuns
         String yy = String.valueOf(simYear).substring(2);
 
         // Unit information
-        String soilProfileID = (String)o[2];
-        int soilRootingDepth = (Integer)o[4];
-        double x = (double)o[10];
-        double y = (double)o[11];
+        String soilProfileID = (String)o[4];
+        int soilRootingDepth = (Integer)o[6];
+        double x = (double)o[2];
+        double y = (double)o[3];
 
         // Cultivar code
         String cropCode = ((String)cultivarOption[1]);

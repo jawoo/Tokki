@@ -216,34 +216,6 @@ public class Utility
         };
     }
 
-    // Cultivar-level information
-    public static int[] getCultivarManagementInformation(String cropCode)
-    {
-        int[] densityAndN = switch (cropCode != null ? cropCode : "") {
-            case "BA" -> new int[] { 200, 80 };
-            case "FB" -> new int[] { 30, 40 };
-            case "CH" -> new int[] { 32, 12 };
-            case "MZ" -> new int[] { 8, 60 };
-            case "SB" -> new int[] { 50, 5 };
-            case "SG" -> new int[] { 20, 100 };
-            case "TF" -> new int[] { 900, 60 };
-            case "WH" -> new int[] { 250, 70 };
-            default -> new int[] { 0, 0 };
-        };
-        int plantingDensityHigh = densityAndN[0];
-        int recommendedNitrogenRate = densityAndN[1];
-        int plantingDensityLow = plantingDensityHigh / 2;
-
-        // Override the planting density with an average value
-        if (App.useAvgPlantingDensity)
-        {
-            int avg = (int)(plantingDensityHigh*0.75);
-            plantingDensityLow = avg;
-            plantingDensityHigh = avg;
-        }
-        return new int[]{ plantingDensityHigh, plantingDensityLow, recommendedNitrogenRate };
-    }
-
     // Convert month to the midday of the month
     public static String getPlantingDate(String plantingMonth)
     {
@@ -332,14 +304,21 @@ public class Utility
                         String[] crops = record.get("Crops").split(",");
                         String[] pdates = record.get("PlantingDates").split(",");
                         String[] areas = record.get("Areas").split(",");
+                        String[] nFertRatesAct = record.get("NFertRateAct").split(",");
+                        String[] nFertRatesRec = record.get("NFertRateRec").split(",");
+                        String[] waterSupplies = record.get("WaterSupply").split(",");
+                        String[] plantingDensities = record.get("PlantingDensity").split(",");
 
                         for (int c=0; c<crops.length; c++)
                         {
                             String crop = crops[c];
                             String area = areas[c];
+                            String nFertRateAct = nFertRatesAct[c];
+                            String nFertRateRec = nFertRatesRec[c];
+                            String waterSupply = waterSupplies[c];
+                            String plantingDensity = plantingDensities[c];
                             ArrayList<String> cultivarList = getCultivarCodes(crop);
                             String[] cultivarCodeAndNames = cultivarList.toArray(String[]::new);
-                            int[] cultivarInfo = getCultivarManagementInformation(crop);
                             try
                             {
 
@@ -350,20 +329,23 @@ public class Utility
                                     String pdate = pdates[c];
 
                                     // Putting all unit information in one object array
-                                    Object[] o = new Object[13];
+                                    Object[] o = new Object[16];
                                     o[0]  = Integer.valueOf(record.get("UnitID"));
                                     o[1]  = Integer.valueOf(record.get("CELL5M"));
-                                    o[2]  = record.get("SoilProfileID");
-                                    o[3]  = record.get("SoilProfile");
-                                    o[4]  = Integer.valueOf(record.get("SoilRootingDepth"));
-                                    o[5]  = Integer.valueOf(pdate);
-                                    o[6]  = crop;
-                                    o[7]  = cultivarCode;
-                                    o[8]  = cultivarName;
-                                    o[9]  = cultivarInfo;
-                                    o[10] = Double.valueOf(record.get("X"));
-                                    o[11] = Double.valueOf(record.get("Y"));
-                                    o[12] = area;
+                                    o[2]  = Double.valueOf(record.get("X"));
+                                    o[3]  = Double.valueOf(record.get("Y"));
+                                    o[4]  = record.get("SoilProfileID");
+                                    o[5]  = record.get("SoilProfile");
+                                    o[6]  = Integer.valueOf(record.get("SoilRootingDepth"));
+                                    o[7]  = Integer.valueOf(pdate);
+                                    o[8]  = crop;
+                                    o[9]  = cultivarCode;
+                                    o[10] = cultivarName;
+                                    o[11] = Double.valueOf(nFertRateAct);
+                                    o[12] = Double.valueOf(nFertRateRec);
+                                    o[13] = waterSupply;
+                                    o[14] = Double.valueOf(plantingDensity);
+                                    o[15] = area;
                                     unitInfo.add(o);
                                     counter++;
                                 }

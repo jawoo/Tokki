@@ -57,7 +57,6 @@ public class App
     static int limitForDebugging = 1;
     static int firstPlantingYear = 2021;
     static int numberOfYears = 5;
-    static boolean useAvgPlantingDensity = true;
     static boolean verbose = false;
     static boolean cleanUpFirst = true;
     static int numberOfCultivars = 0;
@@ -80,7 +79,8 @@ public class App
     */
     static boolean[] switchScenarios = new boolean[7];
     static boolean scenarioCombinations = true;
-    static boolean useRecommendedNitrogenFertilizerRate = true;
+    static boolean useRecommendedNitrogenFertilizerRateOverride = true;
+    static boolean useRecordedWaterSupplyOverride = true;
     static boolean useFixedPlantingDate = false;
     static int fixedPlantingDate = 135;
     static int latBandSize = 10;   // degrees latitude per phenology band
@@ -106,7 +106,8 @@ public class App
             firstPlantingYear = cfg.firstPlantingYear();
             numberOfYears = cfg.numberOfYears();
             scenarioCombinations = cfg.scenarioCombinations();
-            useRecommendedNitrogenFertilizerRate = cfg.useRecommendedNitrogenFertilizerRate();
+            useRecommendedNitrogenFertilizerRateOverride = cfg.useRecommendedNitrogenFertilizerRateOverride();
+            useRecordedWaterSupplyOverride = cfg.useRecordedWaterSupplyOverride();
             nitrogenFertilizerRates = cfg.nitrogenFertilizerRates();
             atmosphericCO2Values = cfg.atmosphericCO2Values();
 
@@ -242,8 +243,8 @@ public class App
                 for (Object unitObj : unitInfo)
                 {
                     Object[] o  = (Object[]) unitObj;
-                    String   k  = o[1] + "_" + o[6];           // CELL5M_CROPCODE
-                    cellCropToXY.putIfAbsent(k, new double[]{ (double) o[10], (double) o[11] });
+                    String   k  = o[1] + "_" + o[8];           // CELL5M_CROPCODE
+                    cellCropToXY.putIfAbsent(k, new double[]{ (double) o[2], (double) o[3] });
                 }
 
                 String pdCsvPath = directoryInputPlatingDates + "plantingdates.csv";
@@ -399,8 +400,8 @@ public class App
                     Object[] o = (Object[])unitInfo[i];
                     int cell5m = (Integer) o[1];
                     String weatherFileName = String.valueOf(cell5m) + ".WTH";
-                    int medianPlantingDate = (Integer) o[5];
-                    String cropCode = (String) o[6];
+                    int medianPlantingDate = (Integer) o[7];
+                    String cropCode = (String) o[8];
 
                     // Scanning planting dates (per year)
                     Future<Object[]> future = executor.submit(new ScanningPlantingDates(medianPlantingDate, weatherFileName, cropCode, firstPlantingYear, numberOfYears, plantingScanProgress));
@@ -458,9 +459,9 @@ public class App
             for (Object unitObj : unitInfo)
             {
                 Object[] o = (Object[]) unitObj;
-                String cropCode    = (String) o[6];
-                String cultivarCode = (String) o[7];
-                double unitY       = (double) o[11];
+                String cropCode    = (String) o[8];
+                String cultivarCode = (String) o[9];
+                double unitY       = (double) o[3];
                 int latBand = (int)(Math.floor(unitY / latBandSize) * latBandSize);
 
                 for (int yr = firstPlantingYear; yr < firstPlantingYear + numberOfYears; yr++)
@@ -494,18 +495,14 @@ public class App
                     int simYear  = Integer.parseInt(kp[kp.length - 1]);
                     int latBand  = Integer.parseInt(kp[kp.length - 2]);
 
-                    String cropCode     = (String) o[6];
-                    String cultivarCode = (String) o[7];
-                    String cultivarName = (String) o[8];
-                    int[]  cultivarInfo = (int[])  o[9];
-                    Object[] cultivarOption = new Object[]{ countryCode, cropCode, cultivarCode,
-                            cultivarName, cultivarInfo[0], cultivarInfo[1], cultivarInfo[2] };
+                    String cropCode     = (String) o[8];
+                    Object[] cultivarOption = buildCultivarOptionFromUnit(o);
 
                     int cell5m = (Integer) o[1];
                     String weatherFileName = cell5m + ".WTH";
                     String weatherKey = cell5m + "_" + cropCode + "_" + simYear;
 
-                    int pd = (int) o[5]; // median planting date as fallback
+                    int pd = (int) o[7]; // median planting date as fallback
                     if (plantingDatesToSimulate.containsKey(weatherKey))
                     {
                         int looked = (Integer) plantingDatesToSimulate.get(weatherKey);
@@ -713,6 +710,32 @@ public class App
     {
     }
 
+    /**
+     * {@code cultivarOption}: [0] country, [1] crop, [2] cultivar code, [3] name,
+     * [4] planting density high from unit {@code o[14]}, [5] half of {@code o[14]},
+     * [6] recommended N from unit {@code o[12]}, [7] actual N from unit {@code o[11]}.
+     */
+    private static Object[] buildCultivarOptionFromUnit(Object[] o)
+    {
+        double nFertAct = ((Number) o[11]).doubleValue();
+        double nFertRec = ((Number) o[12]).doubleValue();
+        double plantDens = ((Number) o[14]).doubleValue();
+        int actualNitrogenRate = (int) Math.round(nFertAct);
+        int recommendedNitrogenRate = (int) Math.round(nFertRec);
+        int plantingDensityHigh = (int) Math.round(plantDens);
+        int plantingDensityLow = (int) Math.round(plantDens / 2.0);
+        return new Object[]{
+                countryCode,
+                (String) o[8],
+                (String) o[9],
+                (String) o[10],
+                plantingDensityHigh,
+                plantingDensityLow,
+                recommendedNitrogenRate,
+                actualNitrogenRate
+        };
+    }
+
     private static SeasonalUnitWork prepareSeasonalUnitWork(
             int i,
             Object[] unitInfo,
@@ -723,14 +746,11 @@ public class App
             boolean logDefaultPlantingDate)
     {
         Object[] o = (Object[]) unitInfo[i];
-        String cropCode = (String) o[6];
-        String cultivarCode = (String) o[7];
-        String cultivarName = (String) o[8];
-        int[] cultivarInfo = (int[]) o[9];
-        Object[] cultivarOption = new Object[]{ countryCode, cropCode, cultivarCode, cultivarName, cultivarInfo[0], cultivarInfo[1], cultivarInfo[2] };
+        String cropCode = (String) o[8];
+        Object[] cultivarOption = buildCultivarOptionFromUnit(o);
         String cropCultivarCode = cultivarOption[1] + (String) cultivarOption[2];
 
-        double unitLat = (double) o[11];
+        double unitLat = (double) o[3];
         int latBand = (int) (Math.floor(unitLat / latBandSize) * latBandSize);
 
         int[] fallbackDtf = (int[]) daysToFloweringByCultivar.get("DEFAULT");

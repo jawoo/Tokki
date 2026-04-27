@@ -44,9 +44,9 @@ public class ThreadFloweringRuns implements Callable<Integer>
         int exitCode = 0;
 
         // Modeling unit information
-        String soilProfileID = (String)o[2];        // SoilProfileID
-        String soilProfile = (String)o[3];          // SoilProfile
-        int soilRootingDepth = (Integer)o[4];       // SoilRootingDepth
+        String soilProfileID = (String)o[4];        // SoilProfileID
+        String soilProfile = (String)o[5];          // SoilProfile
+        int soilRootingDepth = (Integer)o[6];       // SoilRootingDepth
 
         // Copy weather file
         boolean weatherFound = false;

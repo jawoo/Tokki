@@ -56,19 +56,16 @@ public class ThreadSeasonalRuns implements Callable<Integer>
         TreeMap<Integer, Integer> yearToPlantingDate = (TreeMap<Integer, Integer>) weatherAndPlantingDate[1];
         int numYears = yearToPlantingDate.size();
         int recommendedNitrogenRate = (int) cultivarOption[6];
-        int actualNitrogenRate = recommendedNitrogenRate / 2;
-        int[] nitrogenFertilizerRates = new int[]{ actualNitrogenRate, recommendedNitrogenRate };
         long count = 0;
         int ns = scenarios.size();
         for (int s = 0; s < ns; s++)
         {
             int[] scn = (int[]) scenarios.get(s);
-            int switchFertilizer = scn[1];
             int switchCO2Fertilization = scn[6];
 
             ArrayList<Integer> nRates = new ArrayList<>();
-            if (App.useRecommendedNitrogenFertilizerRate)
-                nRates.add(nitrogenFertilizerRates[switchFertilizer]);
+            if (App.useRecommendedNitrogenFertilizerRateOverride)
+                nRates.add(recommendedNitrogenRate);
             else
                 for (Object n : App.nitrogenFertilizerRates)
                     nRates.add((Integer) n);
@@ -200,9 +197,10 @@ public class ThreadSeasonalRuns implements Callable<Integer>
         // Modeling unit information
         int unitId = (Integer)o[0];
         int cell5m = (Integer)o[1];
-        String soilProfileID = (String)o[2];
-        String soilProfile = (String)o[3];
-        int soilRootingDepth = (Integer)o[4];
+        String soilProfileID = (String)o[4];
+        String soilProfile = (String)o[5];
+        int soilRootingDepth = (Integer)o[6];
+        String waterSupply = (String)o[13];
 
         // Thread ID?
         int threadID = Integer.parseInt(Thread.currentThread().getName());
@@ -251,10 +249,8 @@ public class ThreadSeasonalRuns implements Callable<Integer>
             String runLabel;
             String waterManagement;
 
-            // Recommended N application rate
-            int recommendedNitrogenRate = (int)cultivarOption[6];
-            int actualNitrogenRate = recommendedNitrogenRate/2;
-            int[] nitrogenFertilizerRates = new int[]{ actualNitrogenRate, recommendedNitrogenRate };
+            // N application rates (actual vs recommended from unit input)
+            int recommendedNitrogenRate = (int) cultivarOption[6];
 
             // Organic manure application (x1000)
             int[] manureRates = new int[]{ 0, 1 };
@@ -272,7 +268,6 @@ public class ThreadSeasonalRuns implements Callable<Integer>
                 // What to simulate this time
                 int[] scn = (int[])scenarios.get(s);
                 int switchWaterManagement = scn[0];
-                int switchFertilizer = scn[1];
                 int switchManure = scn[2];
                 int switchResidue = scn[3];
                 int switchPlantingWindow = scn[4];
@@ -281,8 +276,8 @@ public class ThreadSeasonalRuns implements Callable<Integer>
 
                 // N rates to use
                 ArrayList<Integer> nRates = new ArrayList<>();
-                if (App.useRecommendedNitrogenFertilizerRate)
-                    nRates.add(nitrogenFertilizerRates[switchFertilizer]);
+                if (App.useRecommendedNitrogenFertilizerRateOverride)
+                    nRates.add(recommendedNitrogenRate);
                 else
                     for (Object n: App.nitrogenFertilizerRates)
                         nRates.add((Integer)n);
@@ -364,6 +359,12 @@ public class ThreadSeasonalRuns implements Callable<Integer>
                     else
                     {
                         pdensityOption = "DH";
+                    }
+
+                    // Water supply override
+                    if (App.useRecordedWaterSupplyOverride)
+                    {
+                        waterManagement = waterSupply;
                     }
 
                     // Status label (year added below)

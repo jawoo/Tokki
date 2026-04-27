@@ -19,8 +19,8 @@ public class SnxWriterFloweringRuns
             ) throws NumberFormatException, InterruptedException {
 
         // Unit information
-        String soilProfileID = (String)o[2];
-        int soilRootingDepth = (Integer)o[4];
+        String soilProfileID = (String)o[4];
+        int soilRootingDepth = (Integer)o[6];
 
         // Cultivar code
         String cropCode = (String)cultivarOption[1];
