@@ -115,77 +115,68 @@ public class ThreadSeasonalRuns implements Callable<Integer>
         }
         else
         {
+
+            int switchWaterManagement = 0;
+            int switchFertilizer = 0;
+            int switchManure = 0;
+            int switchResidue = 0;
+            int switchPlantingWindow = 0;
+            int switchPlantingDensity = 0;
+            int switchCO2Fertilization = 0;
+
             for (int s = 0; s < App.switchScenarios.length; s++)
             {
-                int switchWaterManagement = 0;
-                int switchFertilizer = 0;
-                int switchManure = 0;
-                int switchResidue = 0;
-                int switchPlantingWindow = 0;
-                int switchPlantingDensity = 0;
-                int switchCO2Fertilization = 0;
-
                 switch (s)
                 {
                     case 0 -> {
                         if (App.switchScenarios[s])
                         {
                             switchWaterManagement = 1;
-                            int[] scn = { switchWaterManagement, switchFertilizer, switchManure, switchResidue, switchPlantingWindow, switchPlantingDensity, switchCO2Fertilization };
-                            scenarios.add(scn);
                         }
                     }
                     case 1 -> {
                         if (App.switchScenarios[s])
                         {
                             switchFertilizer = 1;
-                            int[] scn = { switchWaterManagement, switchFertilizer, switchManure, switchResidue, switchPlantingWindow, switchPlantingDensity, switchCO2Fertilization };
-                            scenarios.add(scn);
                         }
                     }
                     case 2 -> {
                         if (App.switchScenarios[s])
                         {
                             switchManure = 1;
-                            int[] scn = { switchWaterManagement, switchFertilizer, switchManure, switchResidue, switchPlantingWindow, switchPlantingDensity, switchCO2Fertilization };
-                            scenarios.add(scn);
                         }
                     }
                     case 3 -> {
                         if (App.switchScenarios[s])
                         {
                             switchResidue = 1;
-                            int[] scn = { switchWaterManagement, switchFertilizer, switchManure, switchResidue, switchPlantingWindow, switchPlantingDensity, switchCO2Fertilization };
-                            scenarios.add(scn);
                         }
                     }
                     case 4 -> {
                         if (App.switchScenarios[s])
                         {
                             switchPlantingWindow = 1;
-                            int[] scn = { switchWaterManagement, switchFertilizer, switchManure, switchResidue, switchPlantingWindow, switchPlantingDensity, switchCO2Fertilization };
-                            scenarios.add(scn);
                         }
                     }
                     case 5 -> {
                         if (App.switchScenarios[s])
                         {
                             switchPlantingDensity = 1;
-                            int[] scn = { switchWaterManagement, switchFertilizer, switchManure, switchResidue, switchPlantingWindow, switchPlantingDensity, switchCO2Fertilization };
-                            scenarios.add(scn);
                         }
                     }
                     case 6 -> {
                         if (App.switchScenarios[s])
                         {
                             switchCO2Fertilization = 1;
-                            int[] scn = { switchWaterManagement, switchFertilizer, switchManure, switchResidue, switchPlantingWindow, switchPlantingDensity, switchCO2Fertilization };
-                            scenarios.add(scn);
                         }
                     }
                     default -> { }
                 }
             }
+
+            int[] scn = { switchWaterManagement, switchFertilizer, switchManure, switchResidue, switchPlantingWindow, switchPlantingDensity, switchCO2Fertilization };
+            scenarios.add(scn);
+
         }
         return scenarios;
     }

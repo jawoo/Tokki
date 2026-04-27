@@ -151,7 +151,7 @@ public class App
             System.out.println("> Limit: "+limitForDebugging);
             System.out.println("> Weather data: "+directoryWeather);
             System.out.println("> Management practice - Water: "+(switchScenarios[0] ? "ON" : "OFF"));
-            System.out.println("> Management practice - Fertilizer: "+(switchScenarios[1] ? "ON" : "OFF")+" ("+Utility.getString(nitrogenFertilizerRates)+")");
+            System.out.println("> Management practice - Fertilizer: "+(switchScenarios[1] ? "ON" : "OFF"));
             System.out.println("> Management practice - Manure: "+(switchScenarios[2] ? "ON" : "OFF"));
             System.out.println("> Management practice - Residue: "+(switchScenarios[3] ? "ON" : "OFF"));
             System.out.println("> Management practice - Planting window: "+(switchScenarios[4] ? "ON" : "OFF"));
