@@ -11,7 +11,6 @@ import java.util.concurrent.Callable;
 public class ThreadFloweringRuns implements Callable<Integer>
 {
     Object[] o;
-    int threadID;
     String weatherFileName;
     int pd;
     Object[] cultivarOption;
@@ -21,11 +20,10 @@ public class ThreadFloweringRuns implements Callable<Integer>
     int simYear;
     final ConsoleProgress floweringProgress;
 
-    ThreadFloweringRuns(Object[] o, int threadID, String weatherFileName, int pd, Object[] cultivarOption, String pdateOption, int co2, int latBand, int simYear,
+    ThreadFloweringRuns(Object[] o, String weatherFileName, int pd, Object[] cultivarOption, String pdateOption, int co2, int latBand, int simYear,
                         ConsoleProgress floweringProgress)
     {
         this.o = o;
-        this.threadID = threadID;
         this.weatherFileName = weatherFileName;
         this.pd = pd;
         this.cultivarOption = cultivarOption;
@@ -42,6 +40,11 @@ public class ThreadFloweringRuns implements Callable<Integer>
 
         // To return
         int exitCode = 0;
+
+        // Working-directory ID = the pool thread actually executing this task.
+        // Pool threads are named 0..N-1 (see getFloweringDates), matching the T0..T{N-1} dirs.
+        // This binds all file I/O below to a dir owned exclusively by this thread.
+        int threadID = Integer.parseInt(Thread.currentThread().getName());
 
         // Modeling unit information
         String soilProfileID = (String)o[4];        // SoilProfileID
