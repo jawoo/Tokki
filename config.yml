@@ -1,4 +1,4 @@
-tableNameUnitInformation: unit-information_usa-mzsb-47707
+tableNameUnitInformation: unit-information
 countryCode: USA
 numberOfThreads: 48    # Keep the maximum number of threads per box at 48
 limitForDebugging: 0

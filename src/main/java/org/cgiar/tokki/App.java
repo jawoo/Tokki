@@ -135,8 +135,12 @@ public class App
         }
         catch (FileNotFoundException e)
         {
-            e.printStackTrace();
+            System.err.println("> Failed to load ." + d + "config.yml: " + e.getMessage());
+            System.exit(1);
         }
+
+        // Fail fast if required inputs are missing (rather than silently producing nothing)
+        validateEnvironment();
 
         /*
         1. PREPARATION
@@ -224,6 +228,13 @@ public class App
         Object[] unitInfo = Utility.getUnitInfo(tableNameUnitInformation, directoryInput, limitForDebugging);
         int numberOfUnits = unitInfo.length;
         System.out.println("> Number of units to run: "+numberOfUnits);
+        if (numberOfUnits == 0)
+        {
+            System.err.println("> No modeling units were produced. Check that: "
+                    + "(1) the input table '" + tableNameUnitInformation + ".csv' in " + directoryInput + " has rows, and "
+                    + "(2) at least one cultivar is flagged with a trailing '*' in the relevant .CUL file(s) in " + directorySource + ".");
+            System.exit(1);
+        }
     
 
         /*
@@ -377,6 +388,58 @@ public class App
             
     }
 
+    // Validate the runtime environment and fail fast with a clear, actionable message.
+    // Required inputs must already exist; working/output directories are created if missing.
+    private static void validateEnvironment()
+    {
+        List<String> problems = new ArrayList<>();
+
+        // Required inputs
+        if (!new File(directorySource).isDirectory())
+            problems.add("DSSAT source workspace not found: " + directorySource);
+
+        String dssatBinary = directorySource + "DSCSM048.EXE";
+        if (!new File(dssatBinary).isFile())
+            problems.add("DSSAT binary not found: " + dssatBinary + " (copy DSCSM048.EXE into the source directory)");
+
+        if (!new File(directoryWeather).isDirectory())
+            problems.add("Weather directory not found: " + directoryWeather);
+
+        String inputTable = directoryInput + tableNameUnitInformation + ".jsonl";
+        if (!new File(inputTable).isFile())
+            problems.add("Unit-information table not found: " + inputTable);
+
+        String soilFile = directoryInput + "US.SOL";
+        if (!new File(soilFile).isFile())
+            problems.add("Soil profile file not found: " + soilFile);
+
+        String co2File = directoryInput + "CO2048.csv";
+        if (!new File(co2File).isFile())
+            problems.add("CO2 history file not found: " + co2File);
+
+        // Working/output directories: create if missing rather than requiring a manual mkdir
+        String[] workingDirs = { directoryFinal, directoryOutput, directoryError, directoryFloweringDates, directoryInputPlatingDates };
+        for (String dir : workingDirs)
+        {
+            try
+            {
+                Files.createDirectories(Paths.get(dir));
+            }
+            catch (IOException e)
+            {
+                problems.add("Could not create working directory " + dir + " (" + e + ")");
+            }
+        }
+
+        if (!problems.isEmpty())
+        {
+            System.err.println("> Environment validation failed:");
+            for (String p : problems)
+                System.err.println("  - " + p);
+            System.exit(1);
+        }
+    }
+
     // Find promising planting dates
     @SuppressWarnings({"UseSpecificCatch", "CallToPrintStackTrace"})
     public static TreeMap<Object, Object> getPlantingDates(Object[] unitInfo)
@@ -448,8 +511,10 @@ public class App
 
         if (step3 && numberOfUnits > 0)
         {
-            int threadID = 0;
-            ExecutorService executor = Executors.newFixedThreadPool(numberOfThreads);
+            // Name pool threads 0..N-1 so each task's working dir (T{threadID}) is
+            // owned by exactly one thread — see ThreadFloweringRuns.call().
+            ThreadFactoryBuilder threadFactoryBuilder = new ThreadFactoryBuilder().setNameFormat("%d");
+            ExecutorService executor = Executors.newFixedThreadPool(numberOfThreads, threadFactoryBuilder.build());
             List<Future<Integer>> futures = new ArrayList<>();
 
             // Build a map of dtfKey → representative unit for every unique
@@ -514,11 +579,9 @@ public class App
                             : co2History.firstEntry().getValue();
 
                     Future<Integer> future = executor.submit(
-                            new ThreadFloweringRuns(o, threadID, weatherFileName, pd,
+                            new ThreadFloweringRuns(o, weatherFileName, pd,
                                     cultivarOption, plantingDateOptionLabel, co2, latBand, simYear, floweringProgress));
                     futures.add(future);
-                    threadID++;
-                    if (threadID == numberOfThreads) threadID = 0;
                 }
                 catch (Exception ex)
                 {
@@ -567,11 +630,15 @@ public class App
             // For each CSV file
             TreeMap<String, ArrayList<Integer>> dtfMap = new TreeMap<>();
             TreeMap<String, ArrayList<Integer>> dthMap = new TreeMap<>();
+            ConsoleProgress analysisProgress = csvFileNames.length > 0
+                    ? new ConsoleProgress("Flowering analysis", csvFileNames.length)
+                    : null;
             for (String csvFileName : csvFileNames)
             {
 
                 // Status
-                System.out.println("> Analyzing " + csvFileName + "...");
+                if (analysisProgress != null)
+                    analysisProgress.step();
 
                 // Extract latBand from filename: find the part starting with "L" before the timestamp.
                 // Filename format: {cell5m}_PB_{cropCode}_{cultivarCode}_Y{year}_L{latBand}_{timestamp}.csv
@@ -643,6 +710,9 @@ public class App
                 } // For each row in the CSV file
 
             } // For each CSV file
+
+            if (analysisProgress != null)
+                analysisProgress.finish();
 
             // Compute mean DTF and DTH for each full key, store in daysToFloweringByCultivar
             int temp;
@@ -854,11 +924,28 @@ public class App
             }
         }
 
-        // Retrieve
+        // Retrieve — a single failed unit must not abort the whole batch
+        int seasonalFailures = 0;
         for (Future<Integer> future: futures)
         {
-            future.get();
+            try
+            {
+                future.get();
+            }
+            catch (ExecutionException ex)
+            {
+                seasonalFailures++;
+                System.err.println("> Seasonal runs: unit task failed (" + ex.getCause() + ")");
+            }
+            catch (InterruptedException ex)
+            {
+                seasonalFailures++;
+                Thread.currentThread().interrupt();
+                System.err.println("> Seasonal runs: interrupted while awaiting results");
+            }
         }
+        if (seasonalFailures > 0)
+            System.out.println("> Seasonal runs: " + seasonalFailures + " of " + futures.size() + " unit tasks failed (see messages above).");
 
         if (seasonalProgress != null)
             seasonalProgress.finish();

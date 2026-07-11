@@ -77,7 +77,7 @@ public class ThreadSeasonalRuns implements Callable<Integer>
             else
             {
                 int y = App.firstPlantingYear;
-                co2s.add(co2History.get(y));
+                co2s.add(co2History.containsKey(y) ? co2History.get(y) : co2History.firstEntry().getValue());
             }
 
             count += (long) nRates.size() * co2s.size() * numYears;
@@ -281,7 +281,7 @@ public class ThreadSeasonalRuns implements Callable<Integer>
                 else
                 {
                     int y = App.firstPlantingYear;
-                    CO2s.add(co2History.get(y));
+                    CO2s.add(co2History.containsKey(y) ? co2History.get(y) : co2History.firstEntry().getValue());
                 }
 
                 // Preparing the combination of multiple N and CO2 values

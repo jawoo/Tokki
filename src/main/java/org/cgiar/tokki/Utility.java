@@ -1,6 +1,7 @@
 package org.cgiar.tokki;
 
 // Java utilities
+import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileReader;
@@ -13,7 +14,9 @@ import java.nio.file.StandardCopyOption;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Scanner;
 import java.util.TreeMap;
 import java.util.regex.Pattern;
@@ -24,6 +27,11 @@ import org.apache.commons.csv.CSVRecord;
 
 // Google utilities
 import com.google.common.collect.Lists;
+
+// SnakeYAML utilities (JSONL parsing)
+import org.yaml.snakeyaml.LoaderOptions;
+import org.yaml.snakeyaml.Yaml;
+import org.yaml.snakeyaml.constructor.SafeConstructor;
 
 // Utility class
 public class Utility 
@@ -286,83 +294,151 @@ public class Utility
         }
     }    
 
-    // List of Unit IDs
+    // Parse US.SOL into a map of soilProfileId -> full DSSAT profile text.
+    // Profiles are blank-line-separated blocks; each begins with "*<id> ...".
+    static Map<String, String> loadSoilProfiles(String path)
+    {
+        Map<String, String> profiles = new HashMap<>();
+        File file = new File(path);
+        if (!file.isFile())
+        {
+            System.err.println("> loadSoilProfiles: soil file not found: " + path);
+            return profiles;
+        }
+        String nl = System.lineSeparator();
+        try (BufferedReader reader = new BufferedReader(new FileReader(path)))
+        {
+            String line;
+            String currentId = null;
+            StringBuilder block = new StringBuilder();
+            while ((line = reader.readLine()) != null)
+            {
+                if (line.startsWith("*"))
+                {
+                    if (currentId != null)
+                        profiles.put(currentId, block.toString().stripTrailing());
+                    currentId = line.substring(1).trim().split("\\s+")[0];
+                    block = new StringBuilder();
+                    block.append(line).append(nl);
+                }
+                else if (currentId != null)
+                {
+                    block.append(line).append(nl);
+                }
+            }
+            if (currentId != null)
+                profiles.put(currentId, block.toString().stripTrailing());
+        }
+        catch (IOException e)
+        {
+            System.err.println("> loadSoilProfiles: failed to read " + path + " (" + e + ")");
+        }
+        return profiles;
+    }
+
+    // List of Unit IDs — read from the JSONL table (one cell per line, crops
+    // nested) and resolve each cell's soil profile from US.SOL by soilProfileId.
+    // Each returned Object[16] is one (cell, crop, cultivar) unit; the positional
+    // layout is unchanged from the previous CSV reader so downstream code is intact.
+    @SuppressWarnings("unchecked")
     public static Object[] getUnitInfo(String tableName, String directoryInput, int limitForDebugging)
     {
         int counter = 0;
         List<Object[]> unitInfo = Lists.newArrayList();
-        try
+
+        // Soil profiles now live in a separate US.SOL, keyed by soilProfileId.
+        Map<String, String> soilProfiles = loadSoilProfiles(directoryInput + "US.SOL");
+
+        // SafeConstructor: parse only standard scalar/list/map types (our data),
+        // never instantiate arbitrary classes from YAML tags.
+        Yaml yaml = new Yaml(new SafeConstructor(new LoaderOptions()));
+        String jsonlPath = directoryInput + tableName + ".jsonl";
+
+        try (BufferedReader reader = new BufferedReader(new FileReader(jsonlPath)))
         {
-            try (Reader in = new FileReader(directoryInput + tableName + ".csv"))
+            String line;
+            while ((line = reader.readLine()) != null)
             {
-                var format = CSVFormat.RFC4180.builder().setSkipHeaderRecord(true).setHeader().get();
-                Iterable<CSVRecord> records = format.parse(in);
-                for (CSVRecord record : records)
+                if (limitForDebugging != 0 && counter >= limitForDebugging) break;
+                line = line.strip();
+                if (line.isEmpty()) continue;
+
+                Map<String, Object> cell;
+                try
                 {
-                    if (limitForDebugging==0 || counter<limitForDebugging)
+                    cell = yaml.load(line);
+                }
+                catch (RuntimeException ex)
+                {
+                    System.err.println("> getUnitInfo: skipping unparseable line (" + ex + ")");
+                    continue;
+                }
+
+                try
+                {
+                    int unitId = ((Number) cell.get("unitId")).intValue();
+                    int cell5m = ((Number) cell.get("cell5m")).intValue();
+                    double x = ((Number) cell.get("x")).doubleValue();
+                    double y = ((Number) cell.get("y")).doubleValue();
+                    String soilProfileId = (String) cell.get("soilProfileId");
+                    int soilRootingDepth = ((Number) cell.get("soilRootingDepth")).intValue();
+
+                    String soilProfile = soilProfiles.get(soilProfileId);
+                    if (soilProfile == null)
                     {
-                        String[] crops = record.get("Crops").split(",");
-                        String[] pdates = record.get("PlantingDates").split(",");
-                        String[] areas = record.get("Areas").split(",");
-                        String[] nFertRatesAct = record.get("NFertRateAct").split(",");
-                        String[] nFertRatesRec = record.get("NFertRateRec").split(",");
-                        String[] waterSupplies = record.get("WaterSupply").split(",");
-                        String[] plantingDensities = record.get("PlantingDensity").split(",");
+                        System.err.println("> getUnitInfo: skipping UnitID " + unitId + " (CELL5M " + cell5m
+                                + "): soil profile " + soilProfileId + " not found in US.SOL");
+                        continue;
+                    }
 
-                        for (int c=0; c<crops.length; c++)
+                    List<Map<String, Object>> crops = (List<Map<String, Object>>) cell.get("crops");
+                    for (Map<String, Object> crop : crops)
+                    {
+                        String cropCode = (String) crop.get("code");
+                        int plantingDate = ((Number) crop.get("plantingDate")).intValue();
+                        double area = ((Number) crop.get("area")).doubleValue();
+                        double nFertRateAct = ((Number) crop.get("nFertRateAct")).doubleValue();
+                        double nFertRateRec = ((Number) crop.get("nFertRateRec")).doubleValue();
+                        String waterSupply = (String) crop.get("waterSupply");
+                        double plantingDensity = ((Number) crop.get("plantingDensity")).doubleValue();
+
+                        for (String cultivarCodeAndName : getCultivarCodes(cropCode))
                         {
-                            String crop = crops[c];
-                            String area = areas[c];
-                            String nFertRateAct = nFertRatesAct[c];
-                            String nFertRateRec = nFertRatesRec[c];
-                            String waterSupply = waterSupplies[c];
-                            String plantingDensity = plantingDensities[c];
-                            ArrayList<String> cultivarList = getCultivarCodes(crop);
-                            String[] cultivarCodeAndNames = cultivarList.toArray(String[]::new);
-                            try
-                            {
+                            String cultivarCode = cultivarCodeAndName.substring(0, 6);
+                            String cultivarName = cultivarCodeAndName.substring(7);
 
-                                for (String cultivarCodeAndName: cultivarCodeAndNames)
-                                {
-                                    String cultivarCode = cultivarCodeAndName.substring(0,6);
-                                    String cultivarName = cultivarCodeAndName.substring(7);
-                                    String pdate = pdates[c];
-
-                                    // Putting all unit information in one object array
-                                    Object[] o = new Object[16];
-                                    o[0]  = Integer.valueOf(record.get("UnitID"));
-                                    o[1]  = Integer.valueOf(record.get("CELL5M"));
-                                    o[2]  = Double.valueOf(record.get("X"));
-                                    o[3]  = Double.valueOf(record.get("Y"));
-                                    o[4]  = record.get("SoilProfileID");
-                                    o[5]  = record.get("SoilProfile");
-                                    o[6]  = Integer.valueOf(record.get("SoilRootingDepth"));
-                                    o[7]  = Integer.valueOf(pdate);
-                                    o[8]  = crop;
-                                    o[9]  = cultivarCode;
-                                    o[10] = cultivarName;
-                                    o[11] = Double.valueOf(nFertRateAct);
-                                    o[12] = Double.valueOf(nFertRateRec);
-                                    o[13] = waterSupply;
-                                    o[14] = Double.valueOf(plantingDensity);
-                                    o[15] = area;
-                                    unitInfo.add(o);
-                                    counter++;
-                                }
-
-                            }
-                            catch (NumberFormatException | StringIndexOutOfBoundsException | ArrayIndexOutOfBoundsException ex)
-                            {
-                                System.err.println("> getUnitInfo: failed to parse unit information (" + ex + ")");
-                            }
+                            // Putting all unit information in one object array
+                            Object[] o = new Object[16];
+                            o[0]  = unitId;
+                            o[1]  = cell5m;
+                            o[2]  = x;
+                            o[3]  = y;
+                            o[4]  = soilProfileId;
+                            o[5]  = soilProfile;
+                            o[6]  = soilRootingDepth;
+                            o[7]  = plantingDate;
+                            o[8]  = cropCode;
+                            o[9]  = cultivarCode;
+                            o[10] = cultivarName;
+                            o[11] = nFertRateAct;
+                            o[12] = nFertRateRec;
+                            o[13] = waterSupply;
+                            o[14] = plantingDensity;
+                            o[15] = area;
+                            unitInfo.add(o);
+                            counter++;
                         }
                     }
+                }
+                catch (RuntimeException ex)
+                {
+                    System.err.println("> getUnitInfo: failed to parse cell " + cell.get("cell5m") + " (" + ex + ")");
                 }
             }
         }
         catch (IOException e)
         {
-            System.err.println("> getUnitInfo: failed to read " + tableName + " (" + e + ")");
+            System.err.println("> getUnitInfo: failed to read " + jsonlPath + " (" + e + ")");
         }
         return unitInfo.toArray(Object[]::new);
     }
