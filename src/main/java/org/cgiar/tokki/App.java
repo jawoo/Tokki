@@ -413,6 +413,10 @@ public class App
         if (!new File(soilFile).isFile())
             problems.add("Soil profile file not found: " + soilFile);
 
+        String schemaFile = directoryInput + "unit-information.schema.json";
+        if (!new File(schemaFile).isFile())
+            problems.add("Unit-information schema not found: " + schemaFile);
+
         String co2File = directoryInput + "CO2048.csv";
         if (!new File(co2File).isFile())
             problems.add("CO2 history file not found: " + co2File);

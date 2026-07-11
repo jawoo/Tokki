@@ -336,6 +336,23 @@ public class Utility
         return profiles;
     }
 
+    // Load a JSON Schema file (valid YAML) into a Map tree; null if unavailable.
+    @SuppressWarnings("unchecked")
+    static Map<String, Object> loadSchema(String path)
+    {
+        if (!new File(path).isFile())
+            return null;
+        try (BufferedReader reader = new BufferedReader(new FileReader(path)))
+        {
+            return new Yaml(new SafeConstructor(new LoaderOptions())).load(reader);
+        }
+        catch (IOException | RuntimeException e)
+        {
+            System.err.println("> loadSchema: failed to read " + path + " (" + e + ")");
+            return null;
+        }
+    }
+
     // List of Unit IDs — read from the JSONL table (one cell per line, crops
     // nested) and resolve each cell's soil profile from US.SOL by soilProfileId.
     // Each returned Object[16] is one (cell, crop, cultivar) unit; the positional
@@ -344,10 +361,20 @@ public class Utility
     public static Object[] getUnitInfo(String tableName, String directoryInput, int limitForDebugging)
     {
         int counter = 0;
+        int skippedInvalid = 0;
         List<Object[]> unitInfo = Lists.newArrayList();
 
         // Soil profiles now live in a separate US.SOL, keyed by soilProfileId.
         Map<String, String> soilProfiles = loadSoilProfiles(directoryInput + "US.SOL");
+
+        // Validate each record against the JSON Schema so the running model
+        // rejects exactly what the converter would (single source of truth).
+        SchemaValidator validator = null;
+        Map<String, Object> schema = loadSchema(directoryInput + "unit-information.schema.json");
+        if (schema != null)
+            validator = new SchemaValidator(schema);
+        else
+            System.err.println("> getUnitInfo: schema not found; skipping schema validation");
 
         // SafeConstructor: parse only standard scalar/list/map types (our data),
         // never instantiate arbitrary classes from YAML tags.
@@ -372,6 +399,19 @@ public class Utility
                 {
                     System.err.println("> getUnitInfo: skipping unparseable line (" + ex + ")");
                     continue;
+                }
+
+                if (validator != null)
+                {
+                    List<String> schemaErrors = validator.validate(cell);
+                    if (!schemaErrors.isEmpty())
+                    {
+                        skippedInvalid++;
+                        System.err.println("> getUnitInfo: schema validation failed for cell "
+                                + cell.get("cell5m") + ": " + schemaErrors.get(0)
+                                + (schemaErrors.size() > 1 ? " (+" + (schemaErrors.size() - 1) + " more)" : ""));
+                        continue;
+                    }
                 }
 
                 try
@@ -440,6 +480,8 @@ public class Utility
         {
             System.err.println("> getUnitInfo: failed to read " + jsonlPath + " (" + e + ")");
         }
+        if (skippedInvalid > 0)
+            System.err.println("> getUnitInfo: skipped " + skippedInvalid + " cell(s) failing schema validation.");
         return unitInfo.toArray(Object[]::new);
     }
 
