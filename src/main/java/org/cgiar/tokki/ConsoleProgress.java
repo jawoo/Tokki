@@ -12,6 +12,7 @@ public final class ConsoleProgress
     private final String label;
     private final long total;
     private final AtomicLong done = new AtomicLong(0);
+    private final long startNanos = System.nanoTime();
     private final boolean graphical;
     private final PrintStream out;
     private boolean completedLine;
@@ -50,7 +51,7 @@ public final class ConsoleProgress
                 synchronized (this)
                 {
                     int pct = (int) Math.min(100L, (100L * cap) / total);
-                    out.println("> " + label + " " + pct + "% (" + cap + "/" + total + ")");
+                    out.println("> " + label + " " + pct + "% (" + cap + "/" + total + ")" + etaField(cap).stripTrailing());
                 }
             }
         }
@@ -65,7 +66,7 @@ public final class ConsoleProgress
         {
             bar.append(i < filled ? '\u2588' : '\u2591');
         }
-        out.print("\r> " + label + " [" + bar + "] " + pct + "% (" + cap + "/" + total + ")  ");
+        out.print("\r> " + label + " [" + bar + "] " + pct + "% (" + cap + "/" + total + ")" + etaField(cap) + " ");
         out.flush();
         if (cap >= total && !completedLine)
         {
@@ -75,6 +76,28 @@ public final class ConsoleProgress
     }
 
     /** If the bar never reached 100% (count mismatch), close the line. */
+    // Fixed-width ETA field (" ETA HH:MM:SS" or equal-width blanks) so the
+    // \r-redrawn line keeps constant width and never leaves stale characters.
+    // ETA = average wall-clock per completed step × steps remaining.
+    private String etaField(long cap)
+    {
+        if (cap > 0 && cap < total)
+        {
+            double elapsedSeconds = (System.nanoTime() - startNanos) / 1e9;
+            long etaSeconds = Math.round(elapsedSeconds / cap * (total - cap));
+            return " ETA " + formatDuration(etaSeconds);
+        }
+        return " ".repeat(13);
+    }
+
+    private static String formatDuration(long totalSeconds)
+    {
+        long h = totalSeconds / 3600;
+        long m = (totalSeconds % 3600) / 60;
+        long s = totalSeconds % 60;
+        return String.format("%02d:%02d:%02d", h, m, s);
+    }
+
     public void finish()
     {
         if (!graphical)
