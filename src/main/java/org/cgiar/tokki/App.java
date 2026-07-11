@@ -405,9 +405,13 @@ public class App
         if (!new File(directoryWeather).isDirectory())
             problems.add("Weather directory not found: " + directoryWeather);
 
-        String inputTable = directoryInput + tableNameUnitInformation + ".csv";
+        String inputTable = directoryInput + tableNameUnitInformation + ".jsonl";
         if (!new File(inputTable).isFile())
             problems.add("Unit-information table not found: " + inputTable);
+
+        String soilFile = directoryInput + "US.SOL";
+        if (!new File(soilFile).isFile())
+            problems.add("Soil profile file not found: " + soilFile);
 
         String co2File = directoryInput + "CO2048.csv";
         if (!new File(co2File).isFile())
