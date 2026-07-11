@@ -301,22 +301,53 @@ public class Utility
                 {
                     if (limitForDebugging==0 || counter<limitForDebugging)
                     {
-                        String[] crops = record.get("Crops").split(",");
-                        String[] pdates = record.get("PlantingDates").split(",");
-                        String[] areas = record.get("Areas").split(",");
-                        String[] nFertRatesAct = record.get("NFertRateAct").split(",");
-                        String[] nFertRatesRec = record.get("NFertRateRec").split(",");
-                        String[] waterSupplies = record.get("WaterSupply").split(",");
-                        String[] plantingDensities = record.get("PlantingDensity").split(",");
+                        // Split with limit -1 so trailing empty values are kept: Java's
+                        // default split(",") drops them, turning "135," (blank 2nd crop)
+                        // into a length-1 array and desyncing the per-crop columns.
+                        String[] crops = record.get("Crops").split(",", -1);
+                        String[] pdates = record.get("PlantingDates").split(",", -1);
+                        String[] areas = record.get("Areas").split(",", -1);
+                        String[] nFertRatesAct = record.get("NFertRateAct").split(",", -1);
+                        String[] nFertRatesRec = record.get("NFertRateRec").split(",", -1);
+                        String[] waterSupplies = record.get("WaterSupply").split(",", -1);
+                        String[] plantingDensities = record.get("PlantingDensity").split(",", -1);
+
+                        // Every per-crop column must carry one value per crop.
+                        int nc = crops.length;
+                        if (pdates.length != nc || areas.length != nc || nFertRatesAct.length != nc
+                                || nFertRatesRec.length != nc || waterSupplies.length != nc || plantingDensities.length != nc)
+                        {
+                            System.err.println("> getUnitInfo: skipping UnitID " + record.get("UnitID")
+                                    + " (CELL5M " + record.get("CELL5M") + "): per-crop column count mismatch"
+                                    + " [Crops=" + nc + ", PlantingDates=" + pdates.length + ", Areas=" + areas.length
+                                    + ", NFertRateAct=" + nFertRatesAct.length + ", NFertRateRec=" + nFertRatesRec.length
+                                    + ", WaterSupply=" + waterSupplies.length + ", PlantingDensity=" + plantingDensities.length + "]");
+                            continue;
+                        }
 
                         for (int c=0; c<crops.length; c++)
                         {
-                            String crop = crops[c];
+                            String crop = crops[c].trim();
                             String area = areas[c];
                             String nFertRateAct = nFertRatesAct[c];
                             String nFertRateRec = nFertRatesRec[c];
                             String waterSupply = waterSupplies[c];
                             String plantingDensity = plantingDensities[c];
+                            String pdate = pdates[c];
+
+                            // Skip a crop whose required fields are blank (e.g. a missing
+                            // planting date), naming the unit and crop so the input can be fixed.
+                            if (crop.isBlank() || pdate.isBlank() || nFertRateAct.isBlank()
+                                    || nFertRateRec.isBlank() || waterSupply.isBlank() || plantingDensity.isBlank())
+                            {
+                                System.err.println("> getUnitInfo: skipping crop '" + crop + "' for UnitID "
+                                        + record.get("UnitID") + " (CELL5M " + record.get("CELL5M")
+                                        + "): blank field(s) [PlantingDate='" + pdate + "', NFertRateAct='" + nFertRateAct
+                                        + "', NFertRateRec='" + nFertRateRec + "', WaterSupply='" + waterSupply
+                                        + "', PlantingDensity='" + plantingDensity + "']");
+                                continue;
+                            }
+
                             ArrayList<String> cultivarList = getCultivarCodes(crop);
                             String[] cultivarCodeAndNames = cultivarList.toArray(String[]::new);
                             try
@@ -326,7 +357,6 @@ public class Utility
                                 {
                                     String cultivarCode = cultivarCodeAndName.substring(0,6);
                                     String cultivarName = cultivarCodeAndName.substring(7);
-                                    String pdate = pdates[c];
 
                                     // Putting all unit information in one object array
                                     Object[] o = new Object[16];
@@ -353,7 +383,8 @@ public class Utility
                             }
                             catch (NumberFormatException | StringIndexOutOfBoundsException | ArrayIndexOutOfBoundsException ex)
                             {
-                                System.err.println("> getUnitInfo: failed to parse unit information (" + ex + ")");
+                                System.err.println("> getUnitInfo: failed to parse crop '" + crop + "' for UnitID "
+                                        + record.get("UnitID") + " (CELL5M " + record.get("CELL5M") + "): " + ex);
                             }
                         }
                     }
