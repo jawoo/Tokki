@@ -7,3 +7,7 @@
 # Include files under input/
 !input/
 !input/**
+# Retired: superseded by unit-information.jsonl + US.SOL (kept locally, untracked)
+input/unit-information_usa-mzsb-47707.csv
+# Generated GIS QC exports — regenerate with prep/export_gis.py
+input/qc/
