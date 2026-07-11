@@ -626,11 +626,15 @@ public class App
             // For each CSV file
             TreeMap<String, ArrayList<Integer>> dtfMap = new TreeMap<>();
             TreeMap<String, ArrayList<Integer>> dthMap = new TreeMap<>();
+            ConsoleProgress analysisProgress = csvFileNames.length > 0
+                    ? new ConsoleProgress("Flowering analysis", csvFileNames.length)
+                    : null;
             for (String csvFileName : csvFileNames)
             {
 
                 // Status
-                System.out.println("> Analyzing " + csvFileName + "...");
+                if (analysisProgress != null)
+                    analysisProgress.step();
 
                 // Extract latBand from filename: find the part starting with "L" before the timestamp.
                 // Filename format: {cell5m}_PB_{cropCode}_{cultivarCode}_Y{year}_L{latBand}_{timestamp}.csv
@@ -702,6 +706,9 @@ public class App
                 } // For each row in the CSV file
 
             } // For each CSV file
+
+            if (analysisProgress != null)
+                analysisProgress.finish();
 
             // Compute mean DTF and DTH for each full key, store in daysToFloweringByCultivar
             int temp;
