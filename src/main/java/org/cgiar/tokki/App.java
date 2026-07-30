@@ -13,6 +13,7 @@ import java.nio.file.Paths;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -323,18 +324,35 @@ public class App
             Date date = new Date();
             long timeStamp = date.getTime();
 
+            // Area (ha) lookup so the weight can be joined onto each output row.
+            // Key = unitId + "_" + cropCode: a cell (unitId) may carry several crops,
+            // so unitId alone is not unique, but unitId+cropCode always is.
+            Map<String, Double> areaByKey = new HashMap<>();
+            for (Object unitObj : unitInfo)
+            {
+                Object[] o = (Object[]) unitObj;
+                areaByKey.putIfAbsent(o[0] + "_" + o[8], ((Number) o[15]).doubleValue());
+            }
+
+            // Column index of the DSSAT crop code ("CR") in the summary header;
+            // identical across all summary files, resolved once from the first one.
+            int crIndex = -1;
+
             // Write
             try
             {
                 String combinedOutput = directoryFinal+"tokki_combinedOutput_"+timeStamp+".csv";
-                
+
                 // Looping through the files
                 try (BufferedWriter writer = new BufferedWriter(new FileWriter(combinedOutput))) {
-                
+
                     // Looping through the files
                     String header;
                     for (String outputFileName: outputFileNames)
                     {
+                        // unitId encoded in the file name: "U{unitId}_C{cell5m}_..."
+                        int unitId = Integer.parseInt(outputFileName.substring(1, outputFileName.indexOf('_')));
+
                         try (BufferedReader reader = new BufferedReader(new FileReader(directoryOutput+outputFileName)))
                         {
                             String line;
@@ -342,21 +360,48 @@ public class App
                             // To skip the header from the second file
                             if (firstFile)
                             {
-                                header = reader.readLine()
-                                        .replace("SOIL_ID","SoilProfileID")
-                                        .replace("LATI","LAT")
-                                        .replace("CR","CropCode")
-                                        .replace("FNAM","CultivarCode");     // Replace SOIL_ID with SoilProfileID
-                                writer.append(header).append(nr);
+                                String rawHeader = reader.readLine();
+
+                                // Rename columns by exact token match, not substring: a plain
+                                // replace("CR","CropCode") would also corrupt "CRST" -> "CropCodeST".
+                                String[] headerCols = rawHeader.split(",");
+                                for (int c = 0; c < headerCols.length; c++)
+                                {
+                                    String col = headerCols[c].trim();
+                                    if (col.equals("CR")) crIndex = c;   // locate crop-code column
+                                    switch (col)
+                                    {
+                                        case "SOIL_ID" -> headerCols[c] = "SoilProfileID";
+                                        case "LATI"    -> headerCols[c] = "LAT";
+                                        case "CR"      -> headerCols[c] = "CropCode";
+                                        case "FNAM"    -> headerCols[c] = "CultivarCode";
+                                        default        -> { }
+                                    }
+                                }
+                                header = String.join(",", headerCols);
+                                writer.append(header).append(",Area_ha").append(nr);
                                 firstFile = false;
                             }
 
                             // Reader --> Writer
                             while ((line = reader.readLine()) != null)
                             {
-                                String firstValue = line.split(",")[0];
-                                if (Utility.isNumeric(firstValue))
-                                    writer.append(line.replace("|", ",")).append(nr);
+                                String[] cols = line.split(",");
+                                if (Utility.isNumeric(cols[0]))
+                                {
+                                    // Join the unit's area (ha) as a weight for downstream aggregation.
+                                    String cropCode = (crIndex >= 0 && crIndex < cols.length) ? cols[crIndex].trim() : "";
+                                    Double area = areaByKey.get(unitId + "_" + cropCode);
+                                    if (area == null)
+                                        System.err.println("> Merge: no area for unitId " + unitId + " crop " + cropCode + " (" + outputFileName + ")");
+
+                                    // DSSAT summary rows carry a trailing comma (an empty field after the
+                                    // last column) that the header lacks; drop it so Area_ha stays aligned.
+                                    String outLine = line.replace("|", ",");
+                                    if (outLine.endsWith(","))
+                                        outLine = outLine.substring(0, outLine.length() - 1);
+                                    writer.append(outLine).append(",").append(area == null ? "" : String.valueOf(area)).append(nr);
+                                }
                             }
                         }
                     }
