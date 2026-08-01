@@ -1,0 +1,43 @@
+tableNameUnitInformation: unit-information
+countryCode: USA
+numberOfThreads: 48    # Keep the maximum number of threads per box at 48
+limitForDebugging: 0
+firstPlantingYear: 2021
+numberOfYears: 5
+directory:
+  weather: 2021-2025_usa-mzsb-47707
+  working: res
+  source: .csm
+  temp: .temp
+  input: input
+  threads: threads
+  result: result
+  summary: summary
+  flowering: flowering
+  plantingDates: planting
+  errors: error
+scenarioCombinations: 0
+scenarioSwitch:
+  waterManagement: 1
+  fertilizer: 1
+  manure: 0
+  residue: 0
+  plantingWindow: 0
+  plantingDensity: 0
+  CO2fertilization: 0
+plantingDateOptions:
+  useFixedPlantingDate: 0
+  fixedPlantingDate: 135
+latBandSize: 1          # degrees latitude per band for phenology stratification
+useRecommendedNitrogenFertilizerRateOverride: 1
+useRecordedWaterSupplyOverride: 1
+nitrogenFertilizerRates:
+# - 0
+ - 30
+# - 90
+# - 150
+atmosphericCO2:
+# - 350
+ - 450
+# - 550
+# - 700

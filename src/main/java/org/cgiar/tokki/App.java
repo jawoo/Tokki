@@ -796,16 +796,17 @@ public class App
                      CSVPrinter csvPrinter = new CSVPrinter(
                              writer,
                              CSVFormat.DEFAULT.builder()
-                                     .setHeader("CultivarCode", "AvgDaysToFlowering", "AvgDaysToHarvest")
+                                     .setHeader("CultivarCode", "AvgDaysToFlowering", "AvgDaysToHarvest", "AvgDaysToV6")
                                      .get()))
                 {
 
-                    // Writing
+                    // Writing. V6 (~sidedress) is derived from days-to-flowering with the
+                    // same rule the fertilizer scheduler uses, so the record matches the run.
                     for (Map.Entry<Object, Object> entry : daysToFloweringByCultivar.entrySet())
                     {
                         String key = (String) entry.getKey();
                         int[] value = (int[]) entry.getValue();
-                        csvPrinter.printRecord(key, value[0], value[1]);
+                        csvPrinter.printRecord(key, value[0], value[1], SnxWriterSeasonalRuns.daysToV6(value[0]));
                     }
                     csvPrinter.flush();
                 }
