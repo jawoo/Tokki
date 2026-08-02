@@ -220,6 +220,29 @@ public class Utility
         return chosen == null ? new ArrayList<>() : List.of(chosen);
     }
 
+    /** Cultivars to run for one crop record. An explicit {@code cultivar:{code,name}}
+     *  in the input record wins (the file fully specifies what to run); when absent we
+     *  fall back to {@link #cultivarsForCell} — the latitude rule for zone crops, the
+     *  flagged cross-product otherwise. Keeps every pre-existing input file working. */
+    @SuppressWarnings("unchecked")
+    public static List<String> cultivarsForCrop(Map<String, Object> crop, String cropCode, double latitude)
+    {
+        if (crop.get("cultivar") instanceof Map)
+        {
+            Map<String, Object> cv = (Map<String, Object>) crop.get("cultivar");
+            Object code = cv.get("code");
+            if (code != null)
+            {
+                // Normalise to the 6-char code + space + name layout the caller unpacks.
+                String c = code.toString().trim();
+                c = c.length() >= 6 ? c.substring(0, 6) : String.format("%-6s", c);
+                Object name = cv.get("name");
+                return List.of(c + " " + (name != null ? name.toString().trim() : ""));
+            }
+        }
+        return cultivarsForCell(cropCode, latitude);
+    }
+
     // Generic maturity cultivars per crop, parsed from the CUL once and cached.
     // Key = maturity index (soybean: maturity group, 000=-2, 00=-1, 0..10;
     // maize: season rank V.SHORT=0, SHORT=1, MEDIUM=2, LONG=3). Value = "VAR# NAME".
@@ -308,14 +331,18 @@ public class Utility
     {
         if (cropCode.equals("SB"))
         {
-            // Soybean MG ~0 near 48 deg N to ~7 near 30 deg N (linear), clamped to a
-            // sensible US range: MG = (48 - lat) * 7/18.
-            double mg = (48.0 - absLat) * 7.0 / 18.0;
+            // Soybean MG tracks latitude (photoperiod), anchored to published
+            // MG-zone band centres (MG0 ~46 deg N ... MG8 ~30 deg N): MG =
+            // (46 - lat)/2. Kept in lockstep with prep/cultivar_select.py so an
+            // unstamped record reproduces the stamped assignment.
+            double mg = (46.0 - absLat) / 2.0;
             return Math.max(0.0, Math.min(8.0, mg));
         }
-        // Corn relative maturity: full season through most of the belt, shortening
-        // only at the northern fringe. Ranks SHORT=1, MEDIUM=2, LONG=3 (V.SHORT=0
-        // is reserved and never targeted).
+        // Corn latitude FALLBACK only (used when a record carries no explicit
+        // cultivar). Production inputs are stamped with a GDD-based maize class
+        // by prep/cultivar_select.py — the model has no weather at selection
+        // time, so it cannot recompute GDD here. Ranks SHORT=1, MEDIUM=2,
+        // LONG=3 (V.SHORT=0 is reserved and never targeted).
         if (absLat >= 47.0) return 1.0;   // northern fringe    -> SHORT
         if (absLat >= 44.0) return 2.0;   // upper Midwest      -> MEDIUM
         return 3.0;                        // core/southern belt -> LONG
@@ -568,9 +595,10 @@ public class Utility
                         String waterSupply = (String) crop.get("waterSupply");
                         double plantingDensity = ((Number) crop.get("plantingDensity")).doubleValue();
 
-                        // Corn/soybean get a single latitude-matched maturity cultivar;
-                        // other crops keep the full flagged-cultivar cross-product.
-                        for (String cultivarCodeAndName : cultivarsForCell(cropCode, y))
+                        // Explicit per-cell cultivar (if the record carries one) wins;
+                        // otherwise corn/soybean get a single latitude-matched maturity
+                        // cultivar and other crops keep the flagged-cultivar cross-product.
+                        for (String cultivarCodeAndName : cultivarsForCrop(crop, cropCode, y))
                         {
                             String cultivarCode = cultivarCodeAndName.substring(0, 6);
                             String cultivarName = cultivarCodeAndName.substring(7);

@@ -1,2 +1,4 @@
 target/
 res/threads/
+# Python bytecode
+__pycache__/
