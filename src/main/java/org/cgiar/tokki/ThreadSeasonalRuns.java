@@ -342,14 +342,16 @@ public class ThreadSeasonalRuns implements Callable<Integer>
                         }
                     }
 
-                    // Planting density option
+                    // Planting density option. Base run uses the full recorded density
+                    // (DH); the density scenario switches to half (DL). Previously these
+                    // labels were inverted relative to the density actually written.
                     if (switchPlantingDensity==0)
                     {
-                        pdensityOption = "DL";
+                        pdensityOption = "DH";   // base = full recorded density
                     }
                     else
                     {
-                        pdensityOption = "DH";
+                        pdensityOption = "DL";   // scenario = half density
                     }
 
                     // Water supply override

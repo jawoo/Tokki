@@ -12,6 +12,21 @@ public class SnxWriterSeasonalRuns
     static DecimalFormat dfDDD   = new DecimalFormat("000");
     static DecimalFormat dfXYCRD = new DecimalFormat("+000.00;-000.00");
 
+    /**
+     * V6 (6-leaf) date for the N sidedress, expressed as a fraction of the
+     * planting-to-anthesis interval (days-to-flowering). V6 is thermal-time
+     * driven, so a fraction of the season length tracks it across climates
+     * better than a fixed calendar offset: for a typical corn dtf of ~65-70 d
+     * this lands the sidedress near 30 days after planting (~V6). Tune here;
+     * the flowering-date CSV records the same value. */
+    public static final double V6_FRACTION_OF_DTF = 0.45;
+
+    /** Days from planting to the ~V6 sidedress, derived from days-to-flowering. */
+    public static int daysToV6(int daysToFlowering)
+    {
+        return (int) Math.round(daysToFlowering * V6_FRACTION_OF_DTF);
+    }
+
     public static void runningTreatmentPackages(
             Object[] o,
             String waterManagement,
@@ -66,8 +81,10 @@ public class SnxWriterSeasonalRuns
         String snxSectionFieldLevel1 = "\n*FIELDS\n@L ID_FIELD WSTA....  FLSA  FLOB  FLDT  FLDD  FLDS  FLST SLTX  SLDP  ID_SOIL    FLNAME\n";
         String snxSectionFieldLevel2 = "@L ...........XCRD ...........YCRD .....ELEV .............AREA .SLEN .FLWR .SLAS FLHST FHDUR\n";
 
-        // Fertilizer
-        int splitFertilizerDate = daysToFlowering; //30;
+        // Fertilizer. Second split is applied at the ~V6 sidedress (derived from
+        // days-to-flowering) rather than at flowering, matching mainstream U.S.
+        // corn practice (planting + V6 sidedress).
+        int splitFertilizerDate = daysToV6(daysToFlowering);
         int splitFertilizerRate = nRate/2;
         String snxSectionFertilizer = """
 
@@ -113,11 +130,12 @@ $BATCH(SEQUENCE)
         // Planting density
         String plantingDensity;
 
-        // Low vs high density
+        // Low vs high density. cultivarOption[4] = full recorded density (high),
+        // [5] = half (low). Labels now match the values they write.
         if (String.valueOf(pdensityOption).equals("DL"))
-            plantingDensity = dfDDD.format((int)cultivarOption[4]);
+            plantingDensity = dfDDD.format((int)cultivarOption[5]);   // DL = low = half
         else
-            plantingDensity = dfDDD.format((int)cultivarOption[5]);
+            plantingDensity = dfDDD.format((int)cultivarOption[4]);   // DH = high = full recorded
 
         // Rice vs non-rice
         if (isRice)
@@ -200,7 +218,7 @@ $BATCH(SEQUENCE)
                 if (daysToFlowering>10)
                 {
                     irrigation.put(daysToFlowering-1, 15);
-                    irrigation.put(daysToFlowering,   15);  // Also the split fertilizer application date
+                    irrigation.put(daysToFlowering,   15);  // Irrigation through the critical flowering window
                     irrigation.put(daysToFlowering+3, 15);
                 }
 
@@ -235,9 +253,9 @@ $BATCH(SEQUENCE)
         {
             snxSectionInitialConditions += """
                     @C   PCR ICDAT  ICRT  ICND  ICRN  ICRE  ICWD ICRES ICREN ICREP ICRIP ICRID ICNAME
-                     1    FA %s   100     0     1     1   001  1000    .8     0   100    15 -99
+                     1    FA %s   100     0     1     1   -99  1000    .8     0   100    15 -99
                     @C  ICBL  SH2O  SNH4  SNO3
-                     1   %s  .001  .001  .001
+                     1   %s  .250  .001  .001
                     """.formatted(icdat, icbl);
         }
 

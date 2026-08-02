@@ -54,14 +54,7 @@ cp ~/codebase/dssat-csm-os/Data/StandardData/* ./.csm
 cp ~/codebase/dssat-csm-os/release/bin/dscsm048 ./.csm/DSCSM048.EXE
 ```
 
-Create some additional directories to collect and process temporary files
-
-```bash
-cd ~/codebase/Tokki/res
-mkdir result
-cd ~/codebase/Tokki/res/.temp
-mkdir summary flowering planting error
-```
+The working directories (`res/result` and the `res/.temp` subdirectories) are created automatically on the first run, so no manual setup is needed here. The program also validates its prerequisites (DSSAT binary, weather directory, input files) at startup and exits with a clear message if any are missing.
 
 ## Selecting cultivars
 
@@ -77,6 +70,22 @@ You can flag as many cultivars as you like.
 
 Get the weather data for USA covering the maize and soybean grid cells from [here](https://cgiar-my.sharepoint.com/:u:/g/personal/j_koo_cgiar_org/IQCLPhLwhm9JRKrZJ_KLMUb1AXMOhLSemFW72fI61zo_rRM?e=9VogL4) and extract the subfolder to ./weather directory.
 
+## Input data
+
+The model reads three files from `res/input/` (all tracked in the repository, so a fresh clone runs as-is):
+
+- `unit-information.jsonl` — one JSON object per grid cell, each with a nested list of crops (planting date, fertilizer rates, water supply, planting density, …). The base name is set by `tableNameUnitInformation` in `config.yml`.
+- `US.SOL` — DSSAT soil profiles, referenced from each cell by `soilProfileId`.
+- `CO2048.csv` — annual atmospheric CO₂ history.
+
+`unit-information.jsonl` and `US.SOL` are generated from the wide source CSV and validated against `res/input/unit-information.schema.json`. Regenerate them whenever the source data changes:
+
+```bash
+python3 prep/csv_to_jsonl.py   # source CSV -> unit-information.jsonl + US.SOL (schema-validated)
+python3 prep/export_gis.py     # flatten to a per-crop GIS view for visual QC (res/input/qc/)
+```
+
+See `prep/constructing_unit-information.md` for the provenance of every data column.
 
 ## Compile the project
 
@@ -106,5 +115,5 @@ java -jar target/tokki-1.0-SNAPSHOT-jar-with-dependencies.jar
 
 ## Note
 
-- After all the batch runs are completed, you can pick up the merged CSV output file at ~/codebase/Toco/res/result directory.
+- After all the batch runs are completed, you can pick up the merged CSV output file at ~/codebase/Tokki/res/result directory.
 - The values of model input parameters are defined in the "config.yml" file in the root directory.

@@ -188,13 +188,139 @@ public class Utility
                 }
             }
         }
-        catch (Exception e) 
+        catch (Exception e)
         {
             System.err.println("> getCultivarCodes: failed to read CUL file for " + cropCode + " (" + e + ")");
         }
         return cultivarList;
     }
-    
+
+    // --- Latitude-aware maturity selection --------------------------------------
+    // Corn (MZ) and soybean (SB) are simulated with a single cultivar chosen by the
+    // cell's latitude, rather than one fixed cultivar everywhere. Soybean maturity
+    // group and corn relative maturity both shorten toward the poles: a single
+    // southern cultivar run in the north cannot reach maturity (large low bias and
+    // failed runs), while a single northern cultivar run in the south wastes the
+    // season. The generic maturity cultivars shipped in the DSSAT CUL files provide
+    // the zone set. Thresholds live in maturityTarget() for easy recalibration.
+
+    /** Crops whose cultivar is picked by latitude instead of cross-producted. */
+    private static boolean hasLatitudeZone(String cropCode)
+    {
+        return cropCode.equals("SB") || cropCode.equals("MZ");
+    }
+
+    /** Cultivars to run at one cell: a single latitude-matched entry for zone crops,
+     *  otherwise every flagged cultivar (unchanged behaviour for other crops). */
+    public static List<String> cultivarsForCell(String cropCode, double latitude)
+    {
+        if (!hasLatitudeZone(cropCode))
+            return getCultivarCodes(cropCode);
+        String chosen = selectMaturityCultivar(cropCode, latitude);
+        return chosen == null ? new ArrayList<>() : List.of(chosen);
+    }
+
+    // Generic maturity cultivars per crop, parsed from the CUL once and cached.
+    // Key = maturity index (soybean: maturity group, 000=-2, 00=-1, 0..10;
+    // maize: season rank V.SHORT=0, SHORT=1, MEDIUM=2, LONG=3). Value = "VAR# NAME".
+    private static final Map<String, TreeMap<Double, String>> maturityCache = new HashMap<>();
+
+    static TreeMap<Double, String> getMaturityCultivars(String cropCode)
+    {
+        TreeMap<Double, String> cached = maturityCache.get(cropCode);
+        if (cached != null) return cached;
+
+        TreeMap<Double, String> map = new TreeMap<>();
+        String modelNameVersion = getModelNameVersion(cropCode);
+        File file = new File(App.directorySource + cropCode + modelNameVersion + ".CUL");
+        try (Scanner sc = new Scanner(file))
+        {
+            while (sc.hasNextLine())
+            {
+                String line = sc.nextLine();
+                if (line.length() <= 70) continue;               // same guard as getCultivarCodes
+                String code = line.substring(0, 6).trim();
+                String name = line.substring(7, 24).trim();
+                Double index = maturityIndex(cropCode, name);
+                if (index != null)
+                    map.putIfAbsent(index, code + " " + name);   // first (canonical) cultivar per index
+            }
+        }
+        catch (Exception e)
+        {
+            System.err.println("> getMaturityCultivars: failed to read CUL for " + cropCode + " (" + e + ")");
+        }
+        maturityCache.put(cropCode, map);
+        return map;
+    }
+
+    // Maturity index for a generic cultivar name, or null if the line is not one of
+    // the generic maturity cultivars we assign by latitude.
+    private static Double maturityIndex(String cropCode, String name)
+    {
+        if (cropCode.equals("SB"))
+        {
+            // "M GROUP 000" | "M GROUP 00" | "M GROUP 0" | "M GROUP 1" .. "M GROUP 10"
+            if (!name.startsWith("M GROUP")) return null;
+            String tok = name.substring(7).trim();
+            if (tok.equals("000")) return -2.0;
+            if (tok.equals("00"))  return -1.0;
+            try { return (double) Integer.parseInt(tok); }
+            catch (NumberFormatException ex) { return null; }    // named lines e.g. Savoy, Vinton
+        }
+        if (cropCode.equals("MZ"))
+        {
+            switch (name)
+            {
+                case "V.SHORT SEASON": return 0.0;
+                case "SHORT SEASON":   return 1.0;
+                case "MEDIUM SEASON":  return 2.0;
+                case "LONG SEASON":    return 3.0;
+                default:               return null;
+            }
+        }
+        return null;
+    }
+
+    /** The generic cultivar nearest the latitude-implied maturity target, or null. */
+    static String selectMaturityCultivar(String cropCode, double latitude)
+    {
+        TreeMap<Double, String> map = getMaturityCultivars(cropCode);
+        if (map.isEmpty())
+        {
+            System.err.println("> selectMaturityCultivar: no generic maturity cultivars for " + cropCode
+                    + "; check " + cropCode + getModelNameVersion(cropCode) + ".CUL");
+            return null;
+        }
+        double target = maturityTarget(cropCode, Math.abs(latitude));
+        double bestKey = map.firstKey();
+        double bestDist = Math.abs(bestKey - target);
+        for (double key : map.keySet())
+        {
+            double d = Math.abs(key - target);
+            if (d < bestDist) { bestDist = d; bestKey = key; }
+        }
+        return map.get(bestKey);
+    }
+
+    // Latitude -> maturity target; both crops shorten toward the poles.
+    private static double maturityTarget(String cropCode, double absLat)
+    {
+        if (cropCode.equals("SB"))
+        {
+            // Soybean MG ~0 near 48 deg N to ~7 near 30 deg N (linear), clamped to a
+            // sensible US range: MG = (48 - lat) * 7/18.
+            double mg = (48.0 - absLat) * 7.0 / 18.0;
+            return Math.max(0.0, Math.min(8.0, mg));
+        }
+        // Corn relative maturity: full season through most of the belt, shortening
+        // only at the northern fringe. Ranks SHORT=1, MEDIUM=2, LONG=3 (V.SHORT=0
+        // is reserved and never targeted).
+        if (absLat >= 47.0) return 1.0;   // northern fringe    -> SHORT
+        if (absLat >= 44.0) return 2.0;   // upper Midwest      -> MEDIUM
+        return 3.0;                        // core/southern belt -> LONG
+    }
+
     // Look-up table for the model and version number
     public static String getModelNameVersion(String cropCode)
     {
@@ -336,6 +462,23 @@ public class Utility
         return profiles;
     }
 
+    // Load a JSON Schema file (valid YAML) into a Map tree; null if unavailable.
+    @SuppressWarnings("unchecked")
+    static Map<String, Object> loadSchema(String path)
+    {
+        if (!new File(path).isFile())
+            return null;
+        try (BufferedReader reader = new BufferedReader(new FileReader(path)))
+        {
+            return new Yaml(new SafeConstructor(new LoaderOptions())).load(reader);
+        }
+        catch (IOException | RuntimeException e)
+        {
+            System.err.println("> loadSchema: failed to read " + path + " (" + e + ")");
+            return null;
+        }
+    }
+
     // List of Unit IDs — read from the JSONL table (one cell per line, crops
     // nested) and resolve each cell's soil profile from US.SOL by soilProfileId.
     // Each returned Object[16] is one (cell, crop, cultivar) unit; the positional
@@ -344,10 +487,20 @@ public class Utility
     public static Object[] getUnitInfo(String tableName, String directoryInput, int limitForDebugging)
     {
         int counter = 0;
+        int skippedInvalid = 0;
         List<Object[]> unitInfo = Lists.newArrayList();
 
         // Soil profiles now live in a separate US.SOL, keyed by soilProfileId.
         Map<String, String> soilProfiles = loadSoilProfiles(directoryInput + "US.SOL");
+
+        // Validate each record against the JSON Schema so the running model
+        // rejects exactly what the converter would (single source of truth).
+        SchemaValidator validator = null;
+        Map<String, Object> schema = loadSchema(directoryInput + "unit-information.schema.json");
+        if (schema != null)
+            validator = new SchemaValidator(schema);
+        else
+            System.err.println("> getUnitInfo: schema not found; skipping schema validation");
 
         // SafeConstructor: parse only standard scalar/list/map types (our data),
         // never instantiate arbitrary classes from YAML tags.
@@ -372,6 +525,19 @@ public class Utility
                 {
                     System.err.println("> getUnitInfo: skipping unparseable line (" + ex + ")");
                     continue;
+                }
+
+                if (validator != null)
+                {
+                    List<String> schemaErrors = validator.validate(cell);
+                    if (!schemaErrors.isEmpty())
+                    {
+                        skippedInvalid++;
+                        System.err.println("> getUnitInfo: schema validation failed for cell "
+                                + cell.get("cell5m") + ": " + schemaErrors.get(0)
+                                + (schemaErrors.size() > 1 ? " (+" + (schemaErrors.size() - 1) + " more)" : ""));
+                        continue;
+                    }
                 }
 
                 try
@@ -402,7 +568,9 @@ public class Utility
                         String waterSupply = (String) crop.get("waterSupply");
                         double plantingDensity = ((Number) crop.get("plantingDensity")).doubleValue();
 
-                        for (String cultivarCodeAndName : getCultivarCodes(cropCode))
+                        // Corn/soybean get a single latitude-matched maturity cultivar;
+                        // other crops keep the full flagged-cultivar cross-product.
+                        for (String cultivarCodeAndName : cultivarsForCell(cropCode, y))
                         {
                             String cultivarCode = cultivarCodeAndName.substring(0, 6);
                             String cultivarName = cultivarCodeAndName.substring(7);
@@ -440,6 +608,8 @@ public class Utility
         {
             System.err.println("> getUnitInfo: failed to read " + jsonlPath + " (" + e + ")");
         }
+        if (skippedInvalid > 0)
+            System.err.println("> getUnitInfo: skipped " + skippedInvalid + " cell(s) failing schema validation.");
         return unitInfo.toArray(Object[]::new);
     }
 
