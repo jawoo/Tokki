@@ -101,6 +101,23 @@
             "type": "number",
             "exclusiveMinimum": 0,
             "description": "Plants per m^2 at emergence (DSSAT PPOP)."
+          },
+          "cultivar": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["code", "name"],
+            "description": "Optional explicit cultivar for this crop at this cell. When present the model runs exactly this cultivar; when absent it falls back to the latitude-matched maturity rule (Utility.cultivarsForCell). Assigned by the input generator so the file fully documents what was simulated.",
+            "properties": {
+              "code": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9]{6}$",
+                "description": "DSSAT 6-character cultivar code, resolved against the crop's CUL file at run time."
+              },
+              "name": {
+                "type": "string",
+                "description": "Human-readable cultivar name (as it appears in the CUL); for provenance/readability."
+              }
+            }
           }
         }
       }

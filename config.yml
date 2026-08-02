@@ -2,10 +2,10 @@ tableNameUnitInformation: unit-information
 countryCode: USA
 numberOfThreads: 48    # Keep the maximum number of threads per box at 48
 limitForDebugging: 0
-firstPlantingYear: 2021
-numberOfYears: 5
+firstPlantingYear: 1995
+numberOfYears: 31
 directory:
-  weather: 2021-2025_usa-mzsb-47707
+  weather: 1995-2025_usa-mzsb-47707
   working: res
   source: .csm
   temp: .temp

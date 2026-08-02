@@ -31,13 +31,35 @@ import re
 import sys
 import warnings
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from cultivar_select import select_cultivar
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(BASE_DIR)
 INPUT_DIR = os.path.join(REPO_ROOT, "res", "input")
+CUL_DIR = os.path.join(REPO_ROOT, "res", ".csm")
+GDD_PATH = os.path.join(INPUT_DIR, "cell-gdd.csv")
 
 DEFAULT_INPUT = os.path.join(INPUT_DIR, "unit-information_usa-mzsb-47707.csv")
 DEFAULT_OUTDIR = INPUT_DIR
 SCHEMA_PATH = os.path.join(INPUT_DIR, "unit-information.schema.json")
+
+
+def _load_gdd(path):
+    """cell5m -> climatological growing-season GDD for maize assignment; empty
+    dict (latitude fallback) if the table is absent."""
+    table = {}
+    if os.path.exists(path):
+        with open(path, newline="") as f:
+            for r in csv.DictReader(f):
+                try:
+                    table[int(r["cell5m"])] = float(r["gdd"])
+                except (ValueError, KeyError):
+                    continue
+    return table
+
+
+GDD_BY_CELL = _load_gdd(GDD_PATH)
 
 # Per-crop columns (comma-packed in the wide CSV) → JSON crop keys.
 CROP_COLUMNS = {
@@ -147,11 +169,22 @@ def convert(input_csv, outdir):
                 rooting_depth = NO_RESTRICTION_DEPTH
                 filled_rooting += 1
 
+            lat = to_float(row["Y"])
+            # Stamp each zone crop with its cultivar so the file fully documents
+            # what the model runs (non-zone crops get None and stay on the
+            # run-time fallback): maize by growing-season GDD (if available for
+            # the cell), soybean by latitude. See prep/cultivar_select.py.
+            cell_gdd = GDD_BY_CELL.get(to_int(cell))
+            for crop in crops:
+                cv = select_cultivar(crop["code"], lat, CUL_DIR, gdd=cell_gdd)
+                if cv is not None:
+                    crop["cultivar"] = cv
+
             records.append({
                 "unitId": to_int(row["UnitID"]),
                 "cell5m": to_int(cell),
                 "x": to_float(row["X"]),
-                "y": to_float(row["Y"]),
+                "y": lat,
                 "soilProfileId": soil_id,
                 "soilRootingDepth": rooting_depth,
                 "crops": crops,
