@@ -52,7 +52,13 @@ cp ~/codebase/dssat-csm-os/Data/Genotype/* ./.csm
 cp ~/codebase/dssat-csm-os/Data/Pest/* ./.csm
 cp ~/codebase/dssat-csm-os/Data/StandardData/* ./.csm
 cp ~/codebase/dssat-csm-os/release/bin/dscsm048 ./.csm/DSCSM048.EXE
+
+# The Genotype copy above overwrites the calibrated maize/soybean cultivar
+# files tracked in this repo with stock DSSAT ones — restore the calibrated ones:
+git checkout -- .csm/SBGRO048.CUL .csm/MZCER048.CUL
 ```
+
+The two `.CUL` files above (`MZCER048.CUL`, `SBGRO048.CUL`) carry this project's calibration and are tracked in the repo; every other file in `res/.csm/` is stock DSSAT, copied in by the commands above. Re-run that final `git checkout` any time a fresh DSSAT copy overwrites them.
 
 The working directories (`res/result` and the `res/.temp` subdirectories) are created automatically on the first run, so no manual setup is needed here. The program also validates its prerequisites (DSSAT binary, weather directory, input files) at startup and exits with a clear message if any are missing.
 

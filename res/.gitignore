@@ -7,6 +7,13 @@
 # Include files under input/
 !input/
 !input/**
+# Calibrated DSSAT cultivar files: the site calibration (maize G2/G3 modern
+# hybrid, soybean per-maturity-group LFMAX) lives in these two files. Track them
+# so the calibration is version-controlled — the rest of .csm/ stays stock DSSAT,
+# populated at setup. NOTE: the setup step that copies stock DSSAT Data/Genotype
+# over .csm/ will overwrite these, so re-checkout or re-apply them after setup.
+!.csm/SBGRO048.CUL
+!.csm/MZCER048.CUL
 # Retired: superseded by unit-information.jsonl + US.SOL (kept locally, untracked)
 input/unit-information_usa-mzsb-47707.csv
 # Generated GIS QC exports — regenerate with prep/export_gis.py
