@@ -87,7 +87,7 @@ You can flag as many cultivars as you like; the model runs the cross-product of 
 
 ## Weather data files
 
-Get the weather data for USA covering the maize and soybean grid cells from [here](https://cgiar-my.sharepoint.com/:u:/g/personal/j_koo_cgiar_org/IQCLPhLwhm9JRKrZJ_KLMUb1AXMOhLSemFW72fI61zo_rRM?e=9VogL4) and extract the subfolder to ./weather directory.
+Get the weather data for USA covering the maize and soybean grid cells from [here](https://huggingface.co/buckets/feedcomposer/tokki) and extract the subfolder to ./weather directory.
 
 ## Input data
 
