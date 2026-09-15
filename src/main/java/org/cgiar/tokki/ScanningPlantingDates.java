@@ -127,6 +127,18 @@ public class ScanningPlantingDates implements Callable<Object[]>
         for (int idx = startIdx; idx <= endIdx; idx++)
         {
             int candidateKey = allDays.get(idx);
+
+            // Candidates must lie inside `year`. This method returns a bare DOY and the
+            // caller pairs it with `year`, so a candidate drawn from an adjacent calendar
+            // year would be planted 365 days off. With windowHalfDays = 30 for every crop,
+            // any median within 30 days of a year boundary spans two calendar years —
+            // reachable for southern-hemisphere sowing windows that straddle 1 January
+            // (e.g. sorghum 16 Oct – 15 Jan). Such windows are truncated at the year
+            // boundary rather than silently wrapped.
+            // The look-ahead tests below deliberately still read past the boundary: rain
+            // expected in early January is a legitimate reason to sow in late December.
+            if (candidateKey / 1000 != year) continue;
+
             double[] day     = weatherByDay.get(candidateKey);
 
             // 1. Temperature gate
@@ -144,7 +156,7 @@ public class ScanningPlantingDates implements Callable<Object[]>
         }
 
         // Fallback: pick the day with the highest 5-day cumulative rainfall
-        return fallbackMaxRainfall(startIdx, endIdx, allDays, weatherByDay);
+        return fallbackMaxRainfall(year, medianDDD, startIdx, endIdx, allDays, weatherByDay);
     }
 
     // -------------------------------------------------------------------------
@@ -201,22 +213,26 @@ public class ScanningPlantingDates implements Callable<Object[]>
         return false;
     }
 
-    /** Fallback: return the DDD with the highest 5-day cumulative rainfall in the window. */
-    private int fallbackMaxRainfall(int startIdx, int endIdx,
+    /** Fallback: return the DDD with the highest 5-day cumulative rainfall in the window.
+     *  Constrained to `year` for the same reason as the onset scan; if the window holds no
+     *  day inside `year` the median planting date is returned unchanged. */
+    private int fallbackMaxRainfall(int year, int medianDDD, int startIdx, int endIdx,
                                     List<Integer> allDays,
                                     TreeMap<Integer, double[]> weatherByDay)
     {
-        int    bestKey  = allDays.get(startIdx);
+        int    bestKey  = -1;
         double bestRain = -1;
         for (int i = startIdx; i <= endIdx; i++)
         {
+            int key = allDays.get(i);
+            if (key / 1000 != year) continue;
             double rain5 = sumRainfall(i, 5, allDays, weatherByDay);
             if (rain5 > bestRain)
             {
                 bestRain = rain5;
-                bestKey  = allDays.get(i);
+                bestKey  = key;
             }
         }
-        return bestKey % 1000;
+        return bestKey < 0 ? medianDDD : bestKey % 1000;
     }
 }
